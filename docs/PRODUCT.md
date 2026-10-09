@@ -123,10 +123,16 @@ AI requests so answers arrive in order.
   `samongnoi`, the only one it knows (a browser drops a socket whose server echoes no requested
   protocol). The upgrade goes to the DO with `presenceId = sha256(clientId)` truncated, never the
   raw id. Errors: a foreign origin is `403`, a missing id `400`, an unknown thread `404`.
-- **Source of truth is Neon.** The DO only relays events. On (re)connect the client refetches
-  messages over HTTP, then applies live events — so missed events are never lost.
+- **Source of truth is Neon.** The DO only relays events. On (re)connect the client re-reads
+  messages over HTTP. Live events that arrive during that re-read are held and applied once it
+  lands (at most 5 s), so an older copy of the list can't overwrite them. Deltas are not replayed,
+  because the re-read may already hold their text; `message.completed` carries the whole answer.
+- **Sending** does not re-read the list. The question shows at once, from the id the POST returns,
+  and the room's `message.created` event replaces that copy with the server's version.
 - **Fallback:** if the socket can't connect after retries, the thread page polls messages
   every 5 s and shows replies when complete (no token streaming).
+- **Refresh:** pulling down from the top of a thread (touch screens) and the `⋯` menu's Refresh
+  re-read the thread and its messages, and reconnect the socket if it is down.
 **Spike outcome (phase 4).** Question: does a stream started inside the DO keep running after the
 RPC that started it has returned, with Hibernation on and two sockets attached? If not, the POST
 would have to wait for the whole answer.
@@ -185,6 +191,10 @@ provider choices in one file: `apps/api/src/lib/ai.ts`.
 |---------|--------|
 | Extraction | `HTMLRewriter`: `<title>`, `og:title/description/image/site_name`, text of `article`/`main`/`p`/`h1-h3`/`li`; skip `script/style/nav/footer/aside` |
 | Home list updates | Polling (only while something is pending) |
+| Chat text | Markdown with GitHub tables (`react-markdown`, `remark-gfm`, and `remark-breaks` so Enter-made line breaks show). Raw HTML is shown as text, images are dropped, and links without a safe address are plain text |
+| Diagrams | Mermaid, loaded the first time a ` ```mermaid ` block is drawn, with `securityLevel: 'strict'`. Drawn only when the answer is complete |
+| Page changes | View Transitions API. Going deeper slides in from the right, going back from the left. Browsers without view-transition types fade; reduced motion keeps the instant change |
+| Pull to refresh | Touch screens only. The page follows the finger at half speed; the browser's own overscroll reload is switched off while it is on |
 | Cache (Upstash) | Rate-limit counters (per IP + global); dedupe recent URL fetches (24 h) |
 
 ### Free-tier budget (checked Oct 2026)
@@ -300,7 +310,9 @@ jobs/              queue-handler.ts → summarize.service.summarizeThread(deps, 
   for the fallback) + last 10 messages **labelled with display names** ("Guest 4821: …") + new
   question. The AI addresses the asker and can see what others said.
 - System prompt: answer from the source; say clearly when the source doesn't cover something
-  (general knowledge allowed, labelled as such); reply in the asker's language; plain text only.
+  (general knowledge allowed, labelled as such); reply in the asker's language; use Markdown where
+  it helps (short lists, tables, fenced code, and a Mermaid block for a flow or a relationship); no
+  HTML and no images.
 - **Prompt injection**: page content, display names, and other people's messages are untrusted
   data — wrap them in delimiters and tell the model to ignore instructions inside them. No
   tools → impact is limited to answer text.
@@ -334,13 +346,16 @@ features/chat/
                open, visibility reconnect, typing expiry, events applied to the query cache
   lib/         chat-state.ts — message cache rules, socket URL and protocols, reconnect delay
   components/  chat-panel (list, input, "New messages ↓", "Reconnecting…"), chat-message,
-               chat-input (Enter sends, Shift+Enter adds a line), suggested-questions,
-               presence-bar, typing-indicator
+               markdown-message (tables, code, links, streaming caret), mermaid-diagram (drawn
+               once the answer is complete), chat-input (Enter sends, Shift+Enter adds a line),
+               suggested-questions, presence-bar, typing-indicator
 lib/api-client.ts  adds X-Client-Id / X-Client-Name to every request
 ```
-Chat messages are plain text, not markdown: the model is asked for plain text, and markdown
-rendering of model output would be one more surface for injected content. shadcn primitives live
-in `components/ui/` (see the design-system skill).
+Chat text is Markdown, for questions and answers alike: GitHub tables, lists, code, links, and
+Mermaid diagrams. Raw HTML is shown as text, images are dropped, and unsafe links are plain text, so
+an answer cannot load pictures from other sites or run script. Shared pieces: `components/pull-to-refresh.tsx`
+and `lib/use-media-query.ts`; page-change direction lives in `lib/navigation-direction.ts`.
+shadcn primitives live in `components/ui/` (see the design-system skill).
 
 ## Responsive design (required — mobile and desktop are both first-class)
 
@@ -352,13 +367,14 @@ Every page must be checked at **375px, 768px, and 1280px** before it's done.
 | App shell | Compact top bar (logo, guest-name menu); content full width with `px-4` | Top bar with "+ New" button; content `max-w-6xl mx-auto` |
 | Home | Single-column card list; **floating "+" button** bottom-right above the safe area | Card grid: 2 cols at `md`, 3 cols at `lg` |
 | New | Full-screen page; form fields full width; **submit button sticky at bottom** | Centered card `max-w-xl`; submit inline |
-| Thread | Back button + title in the header; source and summary stacked first, then the chat with the presence row and **input sticky at bottom**. Built: the summary does not auto-collapse yet, and presence avatars are not in the top bar yet (Phase 5) | **Two panes**: left = source + summary + key points (scrolls independently, ~2/5 width); right = presence bar + chat (~3/5) |
+| Thread | Back button, title, presence avatars (max 3, "+N") and the `⋯` menu in the header. Source and summary stacked first; the summary folds away once messages exist, and its first line stays under the title. Then the chat, with the **question box sticky at the bottom** | **Two panes**: left = source + summary + key points (scrolls independently, ~2/5 width); right = presence bar + chat (~3/5) |
 | Suggested questions | Horizontally scrollable chip row | Wrapped chip row |
 
 Mobile rules:
 - Use `h-dvh` / `min-h-dvh` (not `h-screen`) so layouts survive mobile browser bars and the
   on-screen keyboard; pad fixed bottom elements with `pb-[env(safe-area-inset-bottom)]`.
-- Touch targets ≥ 44×44px; spacing between tappable items ≥ 8px.
+- Touch targets ≥ 44×44px on phones (buttons, inputs, the `⋯` menu); from `md:` the desktop sizes
+  return. Spacing between tappable items ≥ 8px.
 - No hover-only actions: thread actions (copy link, delete, retry, open original) live in a
   visible `⋯` dropdown button.
 - Inputs/textarea use `text-base` (16px) to stop iOS zoom-on-focus.
@@ -368,6 +384,11 @@ Mobile rules:
 - Long URLs/titles: `truncate` / `line-clamp-2` / `break-words` — never horizontal page scroll.
 - Reconnect the WebSocket when the tab becomes visible again (mobile browsers suspend sockets
   in the background).
+- On phones the page scrolls, not the chat, so new messages are followed by scrolling the page.
+- Pull down from the top to refresh a thread (touch screens). The `⋯` menu has **Refresh** for
+  everyone else.
+- The viewport sets `interactive-widget=resizes-content`, so the question box stays above the
+  on-screen keyboard on Android.
 
 ## UX notes (applies the design-system skill's guidelines to this app)
 
@@ -385,6 +406,11 @@ Mobile rules:
 - The guest name is set silently ("Guest 4821"); renaming lives in the top-bar menu — never a
   blocking prompt before first use.
 - Chat answers stream with a subtle cursor; the input keeps its draft if sending fails.
+- A diagram waits for the end of its answer and says so until then. One that can't be drawn
+  shows an error and its source.
+- Pages slide like a phone's navigation: going deeper (Home → a thread, New) comes in from the
+  right; going back (the thread's back button, the logo) comes in from the left. Reduced motion
+  keeps the instant change.
 
 ## Build phases
 

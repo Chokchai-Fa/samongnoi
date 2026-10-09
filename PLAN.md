@@ -17,7 +17,8 @@ Legend: 👤 you (manual / needs your accounts) · 🤖 Claude Code · ✅ done 
 - **Done:** Phase 3 — fetch → extract → AI summary, Link tab, polling, Retry and Delete for failed
   threads (merged, PR #7; CI fix in PR #8). Live AI and the 👤 links check need the deployed app.
 - **Built, not merged** (branch `feat/phase-4-live-chat`): live chat in a thread — messages,
-  streamed answers to every viewer, presence, typing, reconnects. The DO spike outcome is in
+  streamed answers to every viewer, presence, typing, reconnects, Markdown with tables and Mermaid
+  diagrams, page slide transitions, pull to refresh, phone layout. The DO spike outcome is in
   `docs/PRODUCT.md`. Checks pass; the two-browser checks need a deploy.
 - **Next:** merge Phase 4 and deploy, run its 👤 checks, then Phase 5.
 - **Open 👤 items:** protect `main`; upgrade local Terraform to 1.16.x; enable Docker in WSL;
@@ -216,7 +217,10 @@ gracefully with Retry; Gemini outage/429 falls back to Workers AI.
 - [x] 🤖 Shared `realtime.schema.ts`; web `useThreadRoom` (reconnect/backoff, refetch on reconnect,
       visibility reconnect, polling fallback while the socket is down)
 - [x] 🤖 Thread page: chat UI, streaming message, suggested questions, two-pane desktop, stacked
-      mobile with sticky input. Left for Phase 5: summary auto-collapse and presence avatars on phones
+      mobile with sticky input, summary folded on phones, presence avatars in the phone header
+- [x] 🤖 Follow-up: Markdown with GFM tables, lists and code in answers and questions; Mermaid
+      diagrams drawn when the answer completes; page slide transitions; pull to refresh; 44px
+      touch targets; keyboard-safe viewport. Checked in Chromium at 375, 768 and 1280px
 - [x] 🤖 Tests: chat service with fake AI; DO event flow over real sockets (`realtime.test.ts`:
       presence, typing, delete, a streamed answer to two viewers, leaving without a close code)
 - [ ] 👤 two-browser, reload-mid-answer, phone-keyboard and airplane-mode checks on the deployed app
@@ -230,8 +234,7 @@ phone with the keyboard open; airplane-mode toggle reconnects cleanly.
 ## Phase 5 — Limits & polish → MVP
 
 - [ ] 🤖 UX pass on every screen with the design-system **UX review checklist**; fix anything
-      that needs more than 3 taps, lacks feedback, or reads unclear; consistent spacing/type;
-      also the Phase 4 leftovers: summary auto-collapse on phones, presence avatars in the mobile top bar
+      that needs more than 3 taps, lacks feedback, or reads unclear; consistent spacing/type
 - [ ] 👤 5-minute hallway test: a friend saves a link and asks a question without help — note
       every hesitation and fix the top issues
 
