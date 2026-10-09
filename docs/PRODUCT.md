@@ -327,6 +327,23 @@ Mobile rules:
 - Reconnect the WebSocket when the tab becomes visible again (mobile browsers suspend sockets
   in the background).
 
+## UX notes (applies the design-system skill's guidelines to this app)
+
+| Screen | Primary action | Empty / loading / error copy |
+|--------|----------------|------------------------------|
+| Home | "Save a link" (FAB on mobile, top-right button on desktop) | Empty: "Nothing saved yet — save a link and get an AI summary you can discuss." · Loading: card skeletons · Pending card: "Reading the page…" → "Summarizing…" |
+| New | "Save link" / "Save text" (sticky bottom on mobile) | URL field autofocus, `type="url"`, `enterKeyHint="go"`; error under the field: "That doesn't look like a link — paste the full address (https://…)" |
+| Thread | "Ask" (chat send, `enterKeyHint="send"`) | Chat empty: the 3 suggested questions as tappable chips · Failed summary: "Couldn't read this page." + Retry / "Paste the text instead" |
+| Limits | — | 429: "You've hit today's limit — it resets at 07:00 (your time)." (show the local reset time) |
+
+- Saving is optimistic: the pending card appears on Home immediately; the New page clears and
+  navigates back in one motion.
+- Delete uses an **undo toast** ("Thread deleted · Undo") — no confirm dialog; the server
+  delete runs after the toast closes.
+- The guest name is set silently ("Guest 4821"); renaming lives in the top-bar menu — never a
+  blocking prompt before first use.
+- Chat answers stream with a subtle cursor; the input keeps its draft if sending fails.
+
 ## Build phases
 
 1. **Scaffold** — monorepo, CI/CD, infra (Neon, Upstash, Queue), one Worker serving the SPA +

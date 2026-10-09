@@ -234,8 +234,14 @@ apps/web/src/
 
 ### Design system — Tailwind CSS v4 + shadcn/ui
 
-**Use the `design-system` skill** (`.claude/skills/design-system/SKILL.md`) for any change to
-tokens, `components/ui/*`, variants, or when building new shared UI.
+**UI must be easy to use and modern.** A first-time user finishes the main task without help
+(≤ 3 taps, one clear primary action, instant feedback, helpful empty/error states), and screens
+look calm and consistent (spacing rhythm, type scale, neutral base + one accent, short purposeful
+motion). The guidelines and the required **UX review checklist** live in the `design-system`
+skill.
+
+**Use the `design-system` skill** (`.claude/skills/design-system/SKILL.md`) for any UI work —
+new screens, tokens, `components/ui/*`, variants, shared components.
 
 Stack: Tailwind v4 (CSS-first config, no `tailwind.config.js`), shadcn/ui (Radix primitives,
 source owned in `components/ui/`, config in `apps/web/components.json`), `class-variance-authority`
