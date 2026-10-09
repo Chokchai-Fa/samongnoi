@@ -14,12 +14,15 @@ Legend: 👤 you (manual / needs your accounts) · 🤖 Claude Code · ✅ done 
 - **Done:** Phase 0 (except 👤 local tool upgrades + branch protection) and Phase 1.
 - **Done:** Phase 2 — guest identity + threads (merged, PR #6). The post-deploy check (👤 below)
   is still open.
-- **Phase 3 built, not merged** (branch `feat/phase-3-pipeline`): fetch → extract → AI summary,
-  Link tab, polling, Retry and Delete for failed threads. Checks pass; live AI and the 👤 links
-  check need a deploy with keys.
-- **Next:** Phase 3 merge, then Phase 4 — live chat (start with the DO spike).
+- **Done:** Phase 3 — fetch → extract → AI summary, Link tab, polling, Retry and Delete for failed
+  threads (merged, PR #7; CI fix in PR #8). Live AI and the 👤 links check need the deployed app.
+- **Built, not merged** (branch `feat/phase-4-live-chat`): live chat in a thread — messages,
+  streamed answers to every viewer, presence, typing, reconnects. The DO spike outcome is in
+  `docs/PRODUCT.md`. Checks pass; the two-browser checks need a deploy.
+- **Next:** merge Phase 4 and deploy, run its 👤 checks, then Phase 5.
 - **Open 👤 items:** protect `main`; upgrade local Terraform to 1.16.x; enable Docker in WSL;
-  check the live UI on phone + desktop; delete the Neon `test` project.
+  check the live UI on phone + desktop; delete the Neon `test` project; Phase 4 two-browser,
+  reload, phone-keyboard and airplane-mode checks.
 
 ## How we work
 - One step ≈ one branch + PR (`feat/…`, `fix/…`, `infra/…`, `chore/…`, `docs/…`). CI must be
@@ -203,19 +206,21 @@ gracefully with Retry; Gemini outage/429 falls back to Workers AI.
 
 ## Phase 4 — Live chat
 
-- [ ] 🤖 **Spike first** (throwaway branch): ThreadRoom DO with WebSocket Hibernation, `Origin`
-      check on upgrade, stream AI tokens to two browsers; confirm generation continues
-      after `ask()` returns (else POST awaits generation). Record the outcome in `docs/PRODUCT.md`.
-- [ ] 🤖 `messages` table (author_key, author_name) + migration; `chat.service.ts` (prompt with summary/content/history,
-      injection guards); `POST /threads/:id/messages`, `GET …/messages`
-- [ ] 🤖 ThreadRoom DO: sockets, presence (guest names), typing, serialized `ask()`, broadcast
-      events incl. `thread.deleted`;
-      `wrangler.toml` DO binding + migration `v1`
-- [ ] 🤖 Shared `realtime.schema.ts`; web `useThreadRoom` (reconnect/backoff, refetch on
-      reconnect, visibility reconnect, polling fallback)
-- [ ] 🤖 Thread page: chat UI, streaming message, suggested questions, two-pane desktop /
-      collapsible summary + sticky input on mobile
-- [ ] 🤖 Tests: chat service with fake AI; DO event flow test where feasible
+- [x] 🤖 **Spike first** (throwaway branch, local only): ThreadRoom DO with WebSocket Hibernation,
+      `Origin` check on upgrade, a ~27 s stream to two sockets; the POST returned while generation
+      ran on. Outcome in `docs/PRODUCT.md` → "Spike outcome (phase 4)".
+- [x] 🤖 `messages` table (author_key, author_name, error) + migration `0001`; `chat.service.ts`
+      (prompt with summary/content/history, injection guards); `POST /threads/:id/messages`, `GET …/messages`
+- [x] 🤖 ThreadRoom DO: sockets, presence (guest names), typing, serialized `ask()`, broadcast
+      events incl. `thread.deleted`; `wrangler.toml` DO binding + migration `v1`
+- [x] 🤖 Shared `realtime.schema.ts`; web `useThreadRoom` (reconnect/backoff, refetch on reconnect,
+      visibility reconnect, polling fallback while the socket is down)
+- [x] 🤖 Thread page: chat UI, streaming message, suggested questions, two-pane desktop, stacked
+      mobile with sticky input. Left for Phase 5: summary auto-collapse and presence avatars on phones
+- [x] 🤖 Tests: chat service with fake AI; DO event flow over real sockets (`realtime.test.ts`:
+      presence, typing, delete, a streamed answer to two viewers, leaving without a close code)
+- [ ] 👤 two-browser, reload-mid-answer, phone-keyboard and airplane-mode checks on the deployed app
+      (checklist in `docs/PRODUCT.md` → "Spike outcome (phase 4)")
 
 ✅ Two browsers in one thread see each other's questions and the AI's streamed answer live; reload mid-answer shows the right state; works on a
 phone with the keyboard open; airplane-mode toggle reconnects cleanly.
@@ -225,7 +230,8 @@ phone with the keyboard open; airplane-mode toggle reconnects cleanly.
 ## Phase 5 — Limits & polish → MVP
 
 - [ ] 🤖 UX pass on every screen with the design-system **UX review checklist**; fix anything
-      that needs more than 3 taps, lacks feedback, or reads unclear; consistent spacing/type
+      that needs more than 3 taps, lacks feedback, or reads unclear; consistent spacing/type;
+      also the Phase 4 leftovers: summary auto-collapse on phones, presence avatars in the mobile top bar
 - [ ] 👤 5-minute hallway test: a friend saves a link and asks a question without help — note
       every hesitation and fix the top issues
 
@@ -271,7 +277,8 @@ Design notes: `docs/PRODUCT.md` → "Post-MVP: auth & sharing".
 ## Open questions / risks
 - Exact free-tier numbers drift (Gemini, Workers AI, Queues) — re-check when a limit is hit.
 - Docker image names for the local Neon HTTP proxy and serverless-redis-http — verify in 1.6.
-- DO behaviour for long-running AI streams — settled by the Phase 4 spike.
+- DO behaviour for long-running AI streams — settled locally by the Phase 4 spike; confirm on the
+  deployed Worker (checklist in `docs/PRODUCT.md`).
 - Workers 10 ms CPU on large pages — **not measured yet**: this container has no Cloudflare
   runtime. Measure on the deployed Worker with a few large pages; lower the 1 MB cap if needed.
 - Gemini model id (`gemini-3.5-flash` in `lib/ai.ts`) — sources disagree on 2.5 Flash's
