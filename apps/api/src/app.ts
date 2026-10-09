@@ -4,8 +4,10 @@ import { logger } from 'hono/logger';
 import { requestId } from 'hono/request-id';
 import type { ErrorResponse } from '@repo/shared';
 import { AppError } from './lib/errors';
+import { clientIpMiddleware } from './middleware/client-ip';
 import { depsMiddleware } from './middleware/deps';
 import { healthRoutes } from './routes/health.routes';
+import { threadsRoutes } from './routes/threads.routes';
 import type { AppEnv } from './types/app';
 
 /** The only place AppError codes become HTTP statuses. */
@@ -23,8 +25,10 @@ const app = new Hono<AppEnv>()
   .basePath('/api')
   .use(requestId())
   .use(logger())
+  .use(clientIpMiddleware)
   .use(depsMiddleware)
   .route('/health', healthRoutes)
+  .route('/threads', threadsRoutes)
   .notFound((c) =>
     c.json<ErrorResponse>({ error: { code: 'not_found', message: 'Route not found' } }, 404),
   )

@@ -8,11 +8,13 @@ This file is the ordered to-do list — tick boxes as steps land on `main`.
 
 Legend: 👤 you (manual / needs your accounts) · 🤖 Claude Code · ✅ done when…
 
-## Status (2026-10-10)
+## Status (2026-10-09)
 - **Live:** https://app.samongnoi.workers.dev — empty app shell + `/api/health` on one Worker,
   infra (Neon, Upstash, Queue) managed by Terraform, CI/CD green, drift check "No changes".
 - **Done:** Phase 0 (except 👤 local tool upgrades + branch protection) and Phase 1.
-- **Next:** Phase 2 — guest identity + text threads.
+- **Phase 2 built locally, not merged:** guest identity + text threads. Checks pass; the prod
+  check (👤 below) happens after the PR merges and deploys.
+- **Next:** Phase 3 — pipeline (fetch → extract → AI summary).
 - **Open 👤 items:** protect `main`; upgrade local Terraform to 1.16.x; enable Docker in WSL;
   check the live UI on phone + desktop; delete the Neon `test` project.
 
@@ -148,21 +150,26 @@ Neon/Upstash/Queue exist · `pnpm dev` works locally.
 
 ## Phase 2 — Guest identity + threads (text only, no AI yet)
 
-- [ ] 🤖 Guest identity: web `useGuest` (clientId + name in localStorage, rename menu),
-      `api-client` sends `X-Client-Id` / `X-Client-Name`; api `middleware/guest.ts`
-      (validate, `key = sha256(clientId)`), `middleware/client-ip.ts`; `guest.schema.ts`
-- [ ] 🤖 Schema + migration: `threads` (creator_key, creator_name, source_type, content, status, …)
-- [ ] 🤖 `threads.routes/service/repository`: create (text), list all (cursor), get, delete
+- [x] 🤖 Guest identity: web `useGuest` (clientId + name in localStorage, rename menu),
+      `api-client` sends `X-Client-Id` / `X-Client-Name` (name URL-encoded so Thai survives
+      HTTP headers); api `middleware/guest.ts` (validate, `key = sha256(clientId)`),
+      `middleware/client-ip.ts`; `guest.schema.ts`
+- [x] 🤖 Schema + migration: `threads` (creator_key, creator_name, source_type, content, status, …)
+      → `apps/api/drizzle/0000_threads.sql`; applied on deploy by `deploy.yml`
+- [x] 🤖 `threads.routes/service/repository`: create (text), list all (cursor), get, delete
       (creator browser only → else 403); responses expose `isMine`, never raw ids
-- [ ] 🤖 Shared schemas in `packages/shared/threads.schema.ts`
-- [ ] 🤖 Reusable UI patterns first (design-system skill): `PageHeader`, `EmptyState` (icon +
-      one-line explanation + primary action), list/card skeletons, toasts (`sonner`),
-      `ConfirmDialog` / undo toast — every later screen reuses them
-- [ ] 🤖 Web: Home (all threads, "by …" + "Mine" badge, empty state, FAB on mobile), New page
-      (Text tab + public-content notice), Thread page (header + content, Copy link), delete
-      with confirm (only on Mine)
-- [ ] 🤖 Tests: service unit tests (fake deps); route tests incl. delete from another
-      clientId → 403, missing/invalid headers → 400
+- [x] 🤖 Shared schemas in `packages/shared/threads.schema.ts`
+- [x] 🤖 Reusable UI patterns first (design-system skill): `PageHeader`, `EmptyState` (icon +
+      one-line explanation + primary action), card skeletons, toasts (`sonner`), undo toast.
+      No `ConfirmDialog`: delete uses the undo toast, as `docs/PRODUCT.md` specifies
+- [x] 🤖 Web: Home (all threads, "by …" + "Mine" badge, empty state, "Load more", FAB on
+      mobile), New page (text form + public-content notice; the Link tab with tabs comes in
+      Phase 3), Thread page (header + content, Copy link), delete from the ⋯ menu (Mine only)
+      with a 5 s undo toast
+- [x] 🤖 Tests: service unit tests (fake deps, in-memory repository); route tests incl. delete
+      from another clientId → 403, missing/invalid headers → 400
+- [ ] 👤 after deploy: in two browsers, create and open a thread; both see both threads; only
+      the creator sees Delete; check on a phone and a desktop
 
 ✅ Create/list/open text threads on prod from two browsers; both see everything; only the
 creating browser can delete; layouts match `docs/PRODUCT.md` at 375/768/1280.
