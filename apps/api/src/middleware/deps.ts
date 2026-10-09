@@ -5,6 +5,7 @@ import { createAi, type AiClient } from '../lib/ai';
 import { createCache, type Cache } from '../lib/cache';
 import { fetchPage } from '../lib/fetch-page';
 import { createJobQueue } from '../lib/queue';
+import { createRooms } from '../lib/rooms';
 import type { AppEnv } from '../types/app';
 import type { Deps } from '../types/deps';
 
@@ -35,6 +36,7 @@ export function createDeps(env: Env): Deps {
     },
     fetchPage: (url) => fetchPage(url),
     queue: createJobQueue(env.JOBS_QUEUE),
+    rooms: createRooms(env.THREAD_ROOM),
   };
 }
 

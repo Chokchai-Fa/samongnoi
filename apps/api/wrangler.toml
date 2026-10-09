@@ -28,3 +28,11 @@ queue = "samongnoi-jobs"                    # must match the Terraform queue nam
 queue = "samongnoi-jobs"
 max_batch_size = 10
 max_retries = 3
+
+[[durable_objects.bindings]]
+name = "THREAD_ROOM"
+class_name = "ThreadRoom"            # one room per thread: sockets, presence, serial answers
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["ThreadRoom"]  # Free plan: SQLite-backed Durable Objects only

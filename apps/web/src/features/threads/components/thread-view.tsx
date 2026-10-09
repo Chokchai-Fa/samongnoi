@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/empty-state';
+import { ChatPanel } from '@/features/chat/components/chat-panel';
 import { GuestAvatar } from '@/features/guest/components/guest-avatar';
 import { ApiError } from '@/lib/api-error';
 import { formatRelativeTime } from '@/lib/format';
@@ -26,7 +27,10 @@ import { RetryButton } from './retry-button';
 import { SummaryPanel } from './summary-panel';
 import { ThreadActionsMenu } from './thread-actions-menu';
 
-/** One thread: its title and source, then the summary while it is ready, or its progress or failure. */
+/**
+ * One thread. Phones stack it: source and summary first, then the chat. Desktop puts the source
+ * in a left pane (about 2/5) and the chat in a right pane (about 3/5), each scrolling on its own.
+ */
 export function ThreadView({ id }: { id: string }) {
   const thread = useThread(id);
   const navigate = useNavigate();
@@ -65,63 +69,83 @@ export function ThreadView({ id }: { id: string }) {
   }
 
   const data = thread.data;
+  const ready = data.status === 'ready';
 
   return (
-    <article className="mx-auto flex w-full max-w-prose flex-col gap-6">
-      <header className="flex flex-col gap-4">
-        <div className="flex items-center justify-between gap-2">
-          <Button asChild variant="ghost" size="icon" className="-ml-2 size-11">
-            <Link to="/" aria-label="Back to threads">
-              <ArrowLeft />
-            </Link>
-          </Button>
-          <ThreadActionsMenu thread={data} onDelete={goHome} />
-        </div>
-
-        <div className="flex flex-col gap-3">
-          <h1 className="text-2xl font-semibold tracking-tight break-words md:text-3xl">
-            {data.title ?? (data.sourceType === 'url' ? 'Saved link' : 'Untitled')}
-          </h1>
-          <div className="text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
-            {data.siteName && (
-              <>
-                <span>{data.siteName}</span>
-                <span aria-hidden="true">·</span>
-              </>
-            )}
-            <span className="flex items-center gap-1.5">
-              <GuestAvatar name={data.creatorName} className="size-5" />
-              by {data.creatorName}
-            </span>
-            <span aria-hidden="true">·</span>
-            <time dateTime={data.createdAt}>{formatRelativeTime(data.createdAt)}</time>
-            {data.isMine && <Badge variant="secondary">Mine</Badge>}
-          </div>
-        </div>
-
-        {data.imageUrl && <CoverImage src={data.imageUrl} />}
-
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" size="sm" onClick={() => void copyThreadLink(data.id)}>
-            <Link2 />
-            Copy link
-          </Button>
-          {data.sourceUrl && (
-            <Button variant="outline" size="sm" asChild>
-              <a href={data.sourceUrl} target="_blank" rel="noopener noreferrer">
-                <ExternalLink />
-                Open original
-              </a>
+    <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] lg:items-start">
+      <div className="flex min-w-0 flex-col gap-6 lg:sticky lg:top-20 lg:max-h-[calc(100dvh-6rem)] lg:overflow-y-auto lg:pr-2">
+        <header className="flex flex-col gap-4">
+          <div className="flex items-center justify-between gap-2">
+            <Button asChild variant="ghost" size="icon" className="-ml-2 size-11">
+              <Link to="/" aria-label="Back to threads">
+                <ArrowLeft />
+              </Link>
             </Button>
-          )}
-        </div>
-      </header>
+            <ThreadActionsMenu thread={data} onDelete={goHome} />
+          </div>
 
-      <ThreadBody thread={data} />
-    </article>
+          <div className="flex flex-col gap-3">
+            <h1 className="text-2xl font-semibold tracking-tight break-words md:text-3xl">
+              {data.title ?? (data.sourceType === 'url' ? 'Saved link' : 'Untitled')}
+            </h1>
+            <div className="text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+              {data.siteName && (
+                <>
+                  <span>{data.siteName}</span>
+                  <span aria-hidden="true">·</span>
+                </>
+              )}
+              <span className="flex items-center gap-1.5">
+                <GuestAvatar name={data.creatorName} className="size-5" />
+                by {data.creatorName}
+              </span>
+              <span aria-hidden="true">·</span>
+              <time dateTime={data.createdAt}>{formatRelativeTime(data.createdAt)}</time>
+              {data.isMine && <Badge variant="secondary">Mine</Badge>}
+            </div>
+          </div>
+
+          {data.imageUrl && <CoverImage src={data.imageUrl} />}
+
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" onClick={() => void copyThreadLink(data.id)}>
+              <Link2 />
+              Copy link
+            </Button>
+            {data.sourceUrl && (
+              <Button variant="outline" size="sm" asChild>
+                <a href={data.sourceUrl} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink />
+                  Open original
+                </a>
+              </Button>
+            )}
+          </div>
+        </header>
+
+        <ThreadBody thread={data} />
+      </div>
+
+      <div className="flex min-w-0 flex-col gap-4 lg:sticky lg:top-20 lg:h-[calc(100dvh-6rem)]">
+        <ChatPanel
+          threadId={data.id}
+          ready={ready}
+          disabledReason={chatReason(data)}
+          suggestions={data.suggestedQuestions ?? []}
+        />
+      </div>
+    </div>
   );
 }
 
+function chatReason(thread: Thread): string {
+  if (thread.status === 'ready') return '';
+  if (thread.status === 'failed')
+    return "This thread didn't load, so there's nothing to ask about yet. Retry it first.";
+  return 'Chat opens when the summary is ready.';
+}
+
+/** Summary (or progress or failure) and the source text. */
 function ThreadBody({ thread }: { thread: Thread }) {
   if (isWorking(thread.status)) {
     return (
@@ -140,50 +164,56 @@ function ThreadBody({ thread }: { thread: Thread }) {
   }
 
   if (thread.status === 'failed') {
-    return (
-      <section role="alert" className="bg-card flex flex-col gap-4 rounded-xl border p-4 md:p-5">
-        <div className="flex items-start gap-2">
-          <CircleAlert className="text-destructive mt-0.5 size-4 shrink-0" aria-hidden="true" />
-          <div className="min-w-0">
-            <p className="font-medium">{failedMessage(thread.sourceType)}</p>
-            {thread.error && <p className="text-muted-foreground break-words">{thread.error}</p>}
-          </div>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {thread.isMine && <RetryButton id={thread.id} />}
-          {thread.sourceType === 'url' && (
-            <Button variant="outline" size="sm" asChild>
-              <Link to="/new" search={{ tab: 'text' }}>
-                Paste the text instead
-              </Link>
-            </Button>
-          )}
-          {thread.isMine && <DeleteThreadButton thread={thread} />}
-        </div>
-      </section>
-    );
+    return <FailedBody thread={thread} />;
   }
 
   return (
     <div className="flex flex-col gap-4">
       <SummaryPanel thread={thread} />
-      {thread.content && (
-        <Collapsible className="flex flex-col gap-3">
-          <CollapsibleTrigger className="group text-muted-foreground flex w-fit items-center gap-1.5 rounded-sm text-sm font-medium outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50">
-            Source text
-            <ChevronDown
-              className="size-4 transition-transform duration-200 group-data-[state=open]:rotate-180 motion-reduce:transition-none"
-              aria-hidden="true"
-            />
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <div className="text-base leading-relaxed break-words whitespace-pre-wrap">
-              {thread.content}
-            </div>
-          </CollapsibleContent>
-        </Collapsible>
-      )}
+      {thread.content && <SourceText content={thread.content} />}
     </div>
+  );
+}
+
+function FailedBody({ thread }: { thread: Thread }) {
+  return (
+    <section role="alert" className="bg-card flex flex-col gap-4 rounded-xl border p-4 md:p-5">
+      <div className="flex items-start gap-2">
+        <CircleAlert className="text-destructive mt-0.5 size-4 shrink-0" aria-hidden="true" />
+        <div className="min-w-0">
+          <p className="font-medium">{failedMessage(thread.sourceType)}</p>
+          {thread.error && <p className="text-muted-foreground break-words">{thread.error}</p>}
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {thread.isMine && <RetryButton id={thread.id} />}
+        {thread.sourceType === 'url' && (
+          <Button variant="outline" size="sm" asChild>
+            <Link to="/new" search={{ tab: 'text' }}>
+              Paste the text instead
+            </Link>
+          </Button>
+        )}
+        {thread.isMine && <DeleteThreadButton thread={thread} />}
+      </div>
+    </section>
+  );
+}
+
+function SourceText({ content }: { content: string }) {
+  return (
+    <Collapsible className="flex flex-col gap-3">
+      <CollapsibleTrigger className="group text-muted-foreground flex w-fit items-center gap-1.5 rounded-sm text-sm font-medium outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50">
+        Source text
+        <ChevronDown
+          className="size-4 transition-transform duration-200 group-data-[state=open]:rotate-180 motion-reduce:transition-none"
+          aria-hidden="true"
+        />
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="text-base leading-relaxed break-words whitespace-pre-wrap">{content}</div>
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
 
