@@ -32,7 +32,7 @@ Setup — follow `infra/README.md` §1 in order:
 - [ ] 🤖 `git init`, first commit of the planning docs; `gh repo create … --source . --push`
 - [ ] 👤 §1.2 protect `main` (require PR + CI) — after CI exists (end of Phase 1)
 - [ ] 👤 §1.3 Cloudflare: account ID, subdomain, scoped API token
-- [ ] 👤 §1.4 HCP Terraform: org, workspace `samongnoi-prod`, **Local execution mode**, token, `terraform login`
+- [ ] 👤 §1.4 HCP Terraform: org, workspace `samongnoi`, **Local execution mode**, token, `terraform login`
 - [ ] 👤 §1.5 Neon API key, Upstash API key (no projects/databases by hand)
 - [ ] ~~👤 §1.6 Google OAuth client~~ — **skip until post-MVP auth**
 - [ ] 👤 §1.7 Gemini API key (AI Studio, free tier, no billing)
@@ -97,7 +97,7 @@ Terraform, local dev working. Everything later builds on this.
 - [ ] 👤 locally: `terraform init && terraform validate && terraform plan` looks right
 
 ### 1.8 First deploy 🤖 + 👤
-- [ ] 👤 fill the Phase 0 placeholders first: `CHANGE-ME` in `apps/api/wrangler.toml`
+- [x] 👤 fill the Phase 0 placeholders first: `CHANGE-ME` in `apps/api/wrangler.toml`
       (`APP_URL` subdomain) and `infra/envs/prod/versions.tf` (HCP org); confirm regions in
       `terraform.tfvars`
 - [ ] PR with 1.1–1.7 → CI green + plan comment → 👤 review → merge

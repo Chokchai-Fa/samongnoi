@@ -79,7 +79,7 @@ Record non-secret values (account IDs, subdomain, org name) in the table in §1.
 - [ ] Sign up at app.terraform.io (Free tier).
 - [ ] Create an **organization** (e.g. `your-name-projects`). Put the name in
       `infra/envs/prod/versions.tf` → `cloud { organization = "…" }`.
-- [ ] Create a **workspace** `samongnoi-prod` → *CLI-driven workflow*.
+- [ ] Create a **workspace** `samongnoi` → *CLI-driven workflow*.
 - [ ] Workspace → Settings → General → **Execution mode: Local**. (Terraform runs in GitHub
       Actions / your machine; HCP only stores, locks, and versions state.)
 - [ ] Create an API token: Organization → Settings → Teams → *owners* → Team API token
@@ -157,7 +157,7 @@ Generated secrets (`DATABASE_URL`, `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST
 | Cloudflare workers.dev subdomain | `alice` | `apps/api/wrangler.toml` `APP_URL` |
 | App URL | `https://app.samongnoi.workers.dev` (Worker `app` on subdomain `samongnoi`) | `wrangler.toml` `APP_URL`, Google OAuth client |
 | HCP organization | `alice-projects` | `infra/envs/prod/versions.tf` |
-| HCP workspace | `samongnoi-prod` | `infra/envs/prod/versions.tf` |
+| HCP workspace | `samongnoi` | `infra/envs/prod/versions.tf` |
 | Region (Neon / Upstash) | `aws-ap-southeast-1` / `ap-southeast-1` | `infra/envs/prod/terraform.tfvars` |
 
 ---

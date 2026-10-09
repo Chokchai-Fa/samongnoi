@@ -282,7 +282,7 @@ Rules:
 
 ### Terraform state — HCP Terraform (Free)
 - State lives in HCP Terraform (Free tier: up to 500 managed resources, 1 concurrent run).
-  `infra/envs/prod` declares `cloud { organization = "<org>" workspaces { name = "samongnoi-prod" } }`.
+  `infra/envs/prod` declares `cloud { organization = "<org>" workspaces { name = "samongnoi" } }`.
 - The workspace uses **Local execution mode**: Terraform runs in GitHub Actions; HCP only stores,
   versions, encrypts and locks state. Provider credentials therefore live in GitHub secrets, not
   HCP workspace variables.

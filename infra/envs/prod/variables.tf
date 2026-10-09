@@ -9,6 +9,11 @@ variable "project_name" {
   default     = "samongnoi"
 }
 
+variable "neon_org_id" {
+  type        = string
+  description = "Neon organization that owns the project (not secret). Required for API-created projects."
+}
+
 variable "neon_region" {
   type        = string
   description = "Neon region, close to users and to the Upstash region."

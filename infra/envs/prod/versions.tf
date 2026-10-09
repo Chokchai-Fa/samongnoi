@@ -4,10 +4,10 @@ terraform {
   # State in HCP Terraform (Free), workspace in **Local** execution mode — Terraform runs in
   # GitHub Actions / locally; HCP only stores, locks, and versions state.
   cloud {
-    organization = "CHANGE-ME" # TODO(phase 0): your HCP Terraform organization (infra/README.md §1.4)
+    organization = "samongnoi"
 
     workspaces {
-      name = "samongnoi-prod"
+      name = "samongnoi"
     }
   }
 

@@ -2,6 +2,7 @@ module "neon_db" {
   source    = "../../modules/neon_db"
   name      = var.project_name
   region_id = var.neon_region
+  org_id    = var.neon_org_id
 }
 
 module "upstash_redis" {

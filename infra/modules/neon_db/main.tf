@@ -10,6 +10,11 @@ variable "name" {
   description = "Neon project name."
 }
 
+variable "org_id" {
+  type        = string
+  description = "Neon organization ID that owns the project."
+}
+
 variable "region_id" {
   type        = string
   description = "Neon region, e.g. aws-ap-southeast-1."
@@ -32,6 +37,7 @@ variable "role_name" {
 
 resource "neon_project" "this" {
   name       = var.name
+  org_id     = var.org_id
   region_id  = var.region_id
   pg_version = var.pg_version
 
