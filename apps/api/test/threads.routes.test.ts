@@ -59,7 +59,7 @@ describe('POST /api/threads', () => {
     const text = await res.text();
 
     expect(res.status).toBe(202);
-    expect(JSON.parse(text)).toMatchObject({ title: 'Notes', status: 'ready', isMine: true });
+    expect(JSON.parse(text)).toMatchObject({ title: 'Notes', status: 'pending', isMine: true });
     expect(text).not.toContain(alice);
     expect(text).not.toContain('creatorKey');
   });
@@ -70,6 +70,59 @@ describe('POST /api/threads', () => {
     expect(await res.json()).toEqual({
       error: { code: 'validation_error', message: 'Give it a title' },
     });
+  });
+});
+
+describe('POST /api/threads with a link', () => {
+  it('returns 202 pending for a valid link, with the note kept', async () => {
+    const res = await createThread(alice, {
+      type: 'url',
+      url: 'https://example.com/article',
+      note: 'read later',
+    });
+    expect(res.status).toBe(202);
+    expect(await res.json()).toMatchObject({
+      sourceType: 'url',
+      sourceUrl: 'https://example.com/article',
+      note: 'read later',
+      status: 'pending',
+    });
+  });
+
+  it('rejects a link that is not http(s), with the friendly message', async () => {
+    const res = await createThread(alice, { type: 'url', url: 'ftp://example.com/file' });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      error: {
+        code: 'validation_error',
+        message: "That doesn't look like a link — paste the full address (https://…)",
+      },
+    });
+  });
+});
+
+describe('POST /api/threads/:id/retry', () => {
+  it('returns 409 for a thread that has not failed, 403 for another browser, 404 when unknown', async () => {
+    const created = await (await createThread(alice, validThread)).json<{ id: string }>();
+
+    const notFailed = await exports.default.fetch(`${BASE}/${created.id}/retry`, {
+      method: 'POST',
+      headers: guest(alice),
+    });
+    expect(notFailed.status).toBe(409);
+    expect((await notFailed.json<{ error: { code: string } }>()).error.code).toBe('conflict');
+
+    const otherBrowser = await exports.default.fetch(`${BASE}/${created.id}/retry`, {
+      method: 'POST',
+      headers: guest(bob, 'Bob'),
+    });
+    expect(otherBrowser.status).toBe(403);
+
+    const unknown = await exports.default.fetch(`${BASE}/${crypto.randomUUID()}/retry`, {
+      method: 'POST',
+      headers: guest(alice),
+    });
+    expect(unknown.status).toBe(404);
   });
 });
 

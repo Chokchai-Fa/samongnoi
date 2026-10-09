@@ -58,6 +58,36 @@ export async function listThreadSummaries(
     .limit(limit);
 }
 
+/** Only the columns the pipeline and retry change. Identity and source type never change. */
+export type ThreadUpdate = Partial<
+  Pick<
+    NewThreadRow,
+    | 'status'
+    | 'error'
+    | 'title'
+    | 'siteName'
+    | 'imageUrl'
+    | 'content'
+    | 'summary'
+    | 'keyPoints'
+    | 'suggestedQuestions'
+  >
+>;
+
+/** Returns the updated row, or undefined when the thread no longer exists (e.g. deleted). */
+export async function updateThread(
+  db: Db,
+  id: string,
+  values: ThreadUpdate,
+): Promise<ThreadRow | undefined> {
+  const [row] = await db
+    .update(threads)
+    .set({ ...values, updatedAt: new Date() })
+    .where(eq(threads.id, id))
+    .returning();
+  return row;
+}
+
 export async function deleteThreadById(db: Db, id: string): Promise<void> {
   await db.delete(threads).where(eq(threads.id, id));
 }

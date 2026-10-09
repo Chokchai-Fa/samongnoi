@@ -4,6 +4,7 @@ import type {
   NewThreadRow,
   ThreadRow,
   ThreadSummaryRow,
+  ThreadUpdate,
 } from '../../src/repositories/threads.repository';
 
 let rows: ThreadRow[] = [];
@@ -23,21 +24,32 @@ export async function insertThread(_db: unknown, values: NewThreadRow): Promise<
     creatorKey: values.creatorKey,
     creatorName: values.creatorName,
     sourceType: values.sourceType,
-    sourceUrl: null,
-    note: null,
+    sourceUrl: values.sourceUrl ?? null,
+    note: values.note ?? null,
     title: values.title ?? null,
-    siteName: null,
-    imageUrl: null,
+    siteName: values.siteName ?? null,
+    imageUrl: values.imageUrl ?? null,
     content: values.content ?? null,
-    summary: null,
-    keyPoints: null,
-    suggestedQuestions: null,
+    summary: values.summary ?? null,
+    keyPoints: values.keyPoints ?? null,
+    suggestedQuestions: values.suggestedQuestions ?? null,
     status: values.status,
-    error: null,
+    error: values.error ?? null,
     createdAt,
     updatedAt: createdAt,
   };
   rows.push(row);
+  return row;
+}
+
+export async function updateThread(
+  _db: unknown,
+  id: string,
+  values: ThreadUpdate,
+): Promise<ThreadRow | undefined> {
+  const row = rows.find((candidate) => candidate.id === id);
+  if (!row) return undefined;
+  Object.assign(row, values, { updatedAt: new Date() });
   return row;
 }
 

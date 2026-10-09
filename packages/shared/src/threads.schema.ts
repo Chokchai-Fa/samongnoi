@@ -3,12 +3,17 @@ import { z } from 'zod';
 /** Titles stay short enough for a card; content is capped to keep each thread small in Neon. */
 export const THREAD_TITLE_MAX = 200;
 export const THREAD_CONTENT_MAX = 60_000;
+export const THREAD_NOTE_MAX = 500;
+export const THREAD_URL_MAX = 2048;
 
 export const threadStatusSchema = z.enum(['pending', 'processing', 'ready', 'failed']);
 export const threadSourceTypeSchema = z.enum(['url', 'text']);
 
-/** `POST /api/threads` body. Phase 3 adds the `url` variant. */
-export const createThreadSchema = z.object({
+// A regex, not `new URL`: this file is shared with the browser and has no URL type in its config.
+const isHttpUrl = (value: string) => /^https?:\/\/[^\s/?#]+/i.test(value);
+
+/** Pasted text: saved as-is, then summarized. */
+export const createTextThreadSchema = z.object({
   type: z.literal('text'),
   title: z
     .string()
@@ -22,6 +27,29 @@ export const createThreadSchema = z.object({
     .max(THREAD_CONTENT_MAX, 'That text is too long — keep it under 60,000 characters'),
 });
 
+/** A link: the server reads the page in the background, then summarizes it. */
+export const createLinkThreadSchema = z.object({
+  type: z.literal('url'),
+  url: z
+    .string()
+    .trim()
+    .max(THREAD_URL_MAX, 'That link is too long')
+    .refine(isHttpUrl, "That doesn't look like a link — paste the full address (https://…)"),
+  note: z
+    .string()
+    .trim()
+    .max(THREAD_NOTE_MAX, `Keep the note under ${THREAD_NOTE_MAX} characters`)
+    .optional(),
+});
+
+/** `POST /api/threads` body. Both kinds return 202 with a `pending` thread. */
+export const createThreadSchema = z.discriminatedUnion('type', [
+  createTextThreadSchema,
+  createLinkThreadSchema,
+]);
+
+export type CreateTextThreadInput = z.infer<typeof createTextThreadSchema>;
+export type CreateLinkThreadInput = z.infer<typeof createLinkThreadSchema>;
 export type CreateThreadInput = z.infer<typeof createThreadSchema>;
 
 /** Everything a list card needs. Never includes the content. */
@@ -38,7 +66,7 @@ export const threadSummarySchema = z.object({
   createdAt: z.iso.datetime(),
 });
 
-/** `GET /api/threads/:id`: the summary plus the full text and AI fields (null until Phase 3). */
+/** `GET /api/threads/:id`: the summary plus the full text and AI fields. */
 export const threadSchema = threadSummarySchema.extend({
   sourceUrl: z.string().nullable(),
   note: z.string().nullable(),
