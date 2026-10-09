@@ -67,6 +67,7 @@ Do **not** use:
 │   └── README.md           # one-time manual steps: account sign-up, API tokens
 ├── .github/                # workflows (ci, deploy, drift) + composite actions (setup, terraform-outputs)
 ├── PLAN.md                 # step-by-step execution plan (phases, checkboxes)
+├── scripts/                # setup-github-secrets.sh, verify-credentials.py (no values printed)
 ├── docs/PRODUCT.md          # product spec: flow, data model, API, responsive layouts, phases
 ├── .claude/skills/         # project skills for Claude Code (manage-secrets, design-system)
 ├── pnpm-workspace.yaml
@@ -314,7 +315,8 @@ Required GitHub **secrets**: provider credentials `TF_API_TOKEN`, `CLOUDFLARE_AP
 `CLOUDFLARE_ACCOUNT_ID`, `NEON_API_KEY`, `UPSTASH_EMAIL`, `UPSTASH_API_KEY`; third-party app
 secrets (kind 3 below) `GEMINI_API_KEY` (post-MVP auth adds `GOOGLE_CLIENT_ID`,
 `GOOGLE_CLIENT_SECRET`). No GitHub
-variables are needed. Values are set by the user with `scripts/setup-github-secrets.sh` (hidden
+variables are needed. Check values with `scripts/verify-credentials.py` (statuses only), then the
+user sets them with `scripts/setup-github-secrets.sh` (hidden
 prompts → `gh secret set`); never ask for secret values in chat — see the `manage-secrets` skill.
 
 ## Secrets & config
