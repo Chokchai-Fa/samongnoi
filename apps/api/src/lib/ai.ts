@@ -52,6 +52,48 @@ function neutralize(text: string, tag: string): string {
   return text.replace(new RegExp(`</?${tag}`, 'gi'), (match) => match.replace('<', '&lt;'));
 }
 
+/**
+ * What we can safely log about an AI failure: type, status, retryability and a short body excerpt.
+ * Never the request, the content, or any key.
+ */
+export function describeError(error: unknown): Record<string, unknown> {
+  if (!(error instanceof Error)) return { name: 'unknown' };
+  const e = error as Error & {
+    statusCode?: unknown;
+    isRetryable?: unknown;
+    responseBody?: unknown;
+  };
+  return {
+    name: e.name,
+    message: e.message.slice(0, 200),
+    statusCode: typeof e.statusCode === 'number' ? e.statusCode : undefined,
+    isRetryable: typeof e.isRetryable === 'boolean' ? e.isRetryable : undefined,
+    responseBody: typeof e.responseBody === 'string' ? e.responseBody.slice(0, 300) : undefined,
+  };
+}
+
+/**
+ * Workers AI models differ in what they accept for structured output (the json_schema response
+ * format is the suspect). So the fallback asks for one JSON object in plain text and validates it.
+ */
+async function generateSummaryAsText(
+  model: LanguageModel,
+  source: SourceForSummary,
+): Promise<Summary> {
+  const { generateText } = await import('ai');
+  const { text } = await generateText({
+    model,
+    system: `${SYSTEM_PROMPT}\nReply with one JSON object only, with the keys title, summary, keyPoints and suggestedQuestions. No markdown, no commentary.`,
+    prompt: buildPrompt(source),
+    maxRetries: 0,
+    abortSignal: AbortSignal.timeout(AI_TIMEOUT_MS),
+  });
+  const start = text.indexOf('{');
+  const end = text.lastIndexOf('}');
+  if (start === -1 || end < start) throw new Error('Workers AI reply contained no JSON object');
+  return summarySchema.parse(JSON.parse(text.slice(start, end + 1)));
+}
+
 async function generateSummary(model: LanguageModel, source: SourceForSummary): Promise<Summary> {
   // Loaded on first use: the SDKs are large, and most requests never summarize.
   const { generateText, NoObjectGeneratedError, Output } = await import('ai');
@@ -92,15 +134,17 @@ export function createAi(config: Config, workersAi: Ai): AiClient {
         return await generateSummary(gemini, source);
       } catch (error) {
         // Logs the error type and message only: never the request, the content, or the key.
-        console.warn('Gemini failed; using Workers AI', {
-          name: error instanceof Error ? error.name : 'unknown',
-          message: error instanceof Error ? error.message.slice(0, 200) : undefined,
-        });
+        console.warn('Gemini failed; using Workers AI', describeError(error));
       }
-      return generateSummary(fallback, {
-        ...source,
-        content: source.content.slice(0, WORKERS_AI_MAX_SOURCE_CHARS),
-      });
+      try {
+        return await generateSummaryAsText(fallback, {
+          ...source,
+          content: source.content.slice(0, WORKERS_AI_MAX_SOURCE_CHARS),
+        });
+      } catch (error) {
+        console.error('Workers AI failed', describeError(error));
+        throw error;
+      }
     },
   };
 }

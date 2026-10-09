@@ -1,3 +1,4 @@
+import { describeError } from '../lib/ai';
 import { createDeps } from '../middleware/deps';
 import { failThread, SUMMARY_FAILED_MESSAGE, summarizeThread } from '../services/summarize.service';
 import type { Deps } from '../types/deps';
@@ -44,13 +45,13 @@ async function runSummary(deps: Deps, threadId: string, message: Message) {
     await summarizeThread(deps, threadId);
     message.ack();
   } catch (error) {
-    const name = error instanceof Error ? error.name : 'unknown';
+    const detail = describeError(error);
     if (message.attempts >= MAX_ATTEMPTS) {
-      console.error('Summary gave up', { threadId, attempts: message.attempts, error: name });
+      console.error('Summary gave up', { threadId, attempts: message.attempts, error: detail });
       await failThread(deps, threadId, SUMMARY_FAILED_MESSAGE);
       message.ack();
     } else {
-      console.warn('Summary will retry', { threadId, attempts: message.attempts, error: name });
+      console.warn('Summary will retry', { threadId, attempts: message.attempts, error: detail });
       message.retry({ delaySeconds: RETRY_BASE_SECONDS * 2 ** (message.attempts - 1) });
     }
   }
