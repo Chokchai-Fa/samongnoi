@@ -76,7 +76,8 @@ Do **not** use:
 
 ## Tooling
 
-- **pnpm** workspaces + **Turborepo**. Node.js LTS pinned in `.nvmrc`. TypeScript `strict`.
+- **pnpm** workspaces + **Turborepo**. Node.js 22 pinned in `.nvmrc` (wrangler 4 needs ≥ 22).
+  TypeScript 6 `strict` (typescript-eslint doesn't support TS 7 yet).
 - Backend: **Hono**, **zod** (`@hono/zod-validator`, `@hono/zod-openapi`), **Drizzle ORM** with
   `@neondatabase/serverless` (HTTP), `@upstash/redis`, **Better Auth** (post-MVP), **Wrangler** for local
   dev and deploy. AI via the **Vercel AI SDK** (`ai`, `@ai-sdk/google`, `workers-ai-provider`,
@@ -85,7 +86,8 @@ Do **not** use:
   (file-based, type-safe), **TanStack Query** over the Hono RPC client (`hc<AppType>`),
   **Tailwind CSS + shadcn/ui**, **react-hook-form** + zod.
 - Tests: **Vitest**; API integration tests use `@cloudflare/vitest-pool-workers`.
-- Terraform >= 1.6; pin every provider version in `required_providers`.
+- Terraform >= 1.5.7; pin every provider version in `required_providers` and commit
+  `.terraform.lock.hcl` (locked for linux + macOS).
 
 ## Common commands
 
@@ -212,14 +214,17 @@ apps/web/src/
 └── lib/
     ├── api-client.ts        # single `hc<AppType>('/api')` instance — same origin, relative URLs
     ├── query-client.ts      # TanStack Query defaults (retry, staleTime)
-    └── utils.ts             # cn() = clsx + tailwind-merge
+    └── utils.ts             # re-exports cn() from shadcn's `cn` package
 ```
 
 - All server data goes through TanStack Query hooks in `features/*/api/` — components never
   call the API client or `fetch` directly, and server data is not copied into React state.
 - Route files stay thin: loaders/params + composing feature components. No business logic.
 - Import request/response types and zod schemas from `packages/shared`; the only allowed
-  import from `apps/api` is `import type { AppType }`.
+  import from `apps/api` is `import type { AppType } from 'api/app-type'`. It resolves to
+  declarations emitted by the api `types` task (`apps/api/dist/types`), which turbo runs before
+  web `typecheck`/`lint`; run `pnpm --filter api types` once for editor support. New API routes
+  must be chained into `app` in `apps/api/src/app.ts` or they won't appear in `AppType`.
 - Forms: react-hook-form with `zodResolver` using the shared schemas.
 - Config only via `import.meta.env.VITE_*` (validated with zod in `lib/env.ts`); anything
   `VITE_*` is public — never put secrets there.
@@ -277,7 +282,7 @@ Rules:
 
 ### Terraform state — HCP Terraform (Free)
 - State lives in HCP Terraform (Free tier: up to 500 managed resources, 1 concurrent run).
-  `infra/envs/prod` declares `cloud { organization = "<org>" workspaces { name = "samongnoi-prod" } }`.
+  `infra/envs/prod` declares `cloud { organization = "<org>" workspaces { name = "samongnoi" } }`.
 - The workspace uses **Local execution mode**: Terraform runs in GitHub Actions; HCP only stores,
   versions, encrypts and locks state. Provider credentials therefore live in GitHub secrets, not
   HCP workspace variables.
@@ -364,7 +369,7 @@ The Worker's config file, read by `wrangler dev` / `wrangler deploy`: name, entr
 version, bindings, and non-secret `[vars]`. `wrangler types` generates the `Env` type from it.
 
 ```toml
-name = "samongnoi"                           # → https://samongnoi.<subdomain>.workers.dev
+name = "app"                                 # → https://app.samongnoi.workers.dev
 main = "src/index.ts"
 compatibility_date = "2026-10-01"          # bump deliberately, never automatically
 compatibility_flags = ["nodejs_compat"]
@@ -374,7 +379,7 @@ enabled = true
 
 [vars]                                      # non-secret only — this file is committed
 APP_ENV = "production"
-APP_URL = "https://samongnoi.<subdomain>.workers.dev"   # WS Origin check; post-MVP Better Auth baseURL
+APP_URL = "https://app.samongnoi.workers.dev"   # WS Origin check; post-MVP Better Auth baseURL
 
 [assets]                                    # Workers Static Assets: the SPA
 directory = "../web/dist"                   # build apps/web first

@@ -16,6 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
+      contents: read # job-level permissions replace the workflow's; private repos need this to check out
       pull-requests: read
     outputs:
       app: ${{ steps.filter.outputs.app }}
@@ -48,6 +49,9 @@ jobs:
 
       - uses: ./.github/actions/setup
 
+      - name: Formatting
+        run: pnpm format:check
+
       - name: Lint, typecheck, test, build (affected packages only)
         run: pnpm turbo run lint typecheck test build --filter="...[origin/main]"
 
@@ -71,6 +75,7 @@ jobs:
       NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
       UPSTASH_EMAIL: ${{ secrets.UPSTASH_EMAIL }}
       UPSTASH_API_KEY: ${{ secrets.UPSTASH_API_KEY }}
+      HAS_TF_TOKEN: ${{ secrets.TF_API_TOKEN != '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -81,14 +86,25 @@ jobs:
       - name: terraform fmt
         run: terraform fmt -check -recursive ../..
 
+      # Until the Phase 0 secrets exist, validate offline and skip the plan (not a failure).
+      - name: Secrets not set yet — offline validate only
+        if: env.HAS_TF_TOKEN != 'true'
+        run: |
+          echo "::notice::TF_API_TOKEN is not set (PLAN.md Phase 0) — skipping terraform plan."
+          terraform init -backend=false -input=false -no-color
+          terraform validate -no-color
+
       - name: terraform init
+        if: env.HAS_TF_TOKEN == 'true'
         run: terraform init -input=false
 
       - name: terraform validate
+        if: env.HAS_TF_TOKEN == 'true'
         run: terraform validate -no-color
 
       - name: terraform plan
         id: plan
+        if: env.HAS_TF_TOKEN == 'true'
         run: |
           set -o pipefail
           terraform plan -input=false -no-color -lock-timeout=5m | tee plan.txt
