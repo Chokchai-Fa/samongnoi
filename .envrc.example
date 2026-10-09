@@ -1,0 +1,7 @@
+# direnv: copy to .envrc (gitignored) and run `direnv allow`. Used for running Terraform
+# locally (infra/README.md §3). Never commit real values.
+export CLOUDFLARE_API_TOKEN=
+export TF_VAR_cloudflare_account_id=
+export NEON_API_KEY=
+export UPSTASH_EMAIL=
+export UPSTASH_API_KEY=

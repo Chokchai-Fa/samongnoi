@@ -1,0 +1,11 @@
+pnpm-lock.yaml
+dist
+.turbo
+.wrangler
+coverage
+**/routeTree.gen.ts
+**/worker-configuration.d.ts
+apps/api/drizzle
+*.md
+.github
+infra

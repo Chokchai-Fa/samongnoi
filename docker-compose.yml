@@ -1,0 +1,51 @@
+# Local infrastructure for `pnpm dev` — no cloud quota used. See infra/README.md §5.
+# The app talks to Neon over HTTP and Upstash over REST, so plain Postgres/Redis get small
+# compatibility proxies in front of them.
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: main
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d main']
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+  # Neon HTTP/WebSocket proxy → lets @neondatabase/serverless reach local Postgres via
+  # db.localtest.me:4444 (apps/api/src/db/client.ts sets neonConfig.fetchEndpoint for it).
+  neon-proxy:
+    image: ghcr.io/timowilhelm/local-neon-http-proxy:main
+    environment:
+      PG_CONNECTION_STRING: postgres://postgres:postgres@postgres:5432/main
+    ports:
+      - '4444:4444'
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - '6379:6379'
+
+  # Upstash-compatible REST API in front of local Redis → @upstash/redis works unchanged.
+  redis-http:
+    image: hiett/serverless-redis-http:latest
+    environment:
+      SRH_MODE: env
+      SRH_TOKEN: local-dev-token # must equal UPSTASH_REDIS_REST_TOKEN in apps/api/.dev.vars
+      SRH_CONNECTION_STRING: redis://redis:6379
+    ports:
+      - '8079:80'
+    depends_on:
+      - redis
+
+volumes:
+  postgres_data:

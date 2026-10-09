@@ -28,7 +28,7 @@ Decisions 👤 (record answers in `infra/README.md` §1.9):
 - [ ] HCP Terraform organization name
 
 Setup — follow `infra/README.md` §1 in order:
-- [ ] 👤 §1.1 local tools (Node LTS, pnpm via corepack, Terraform ≥ 1.6, Docker, gh)
+- [ ] 👤 §1.1 local tools (Node 22, pnpm via corepack, Terraform ≥ 1.5.7, Docker, gh)
 - [ ] 🤖 `git init`, first commit of the planning docs; `gh repo create … --source . --push`
 - [ ] 👤 §1.2 protect `main` (require PR + CI) — after CI exists (end of Phase 1)
 - [ ] 👤 §1.3 Cloudflare: account ID, subdomain, scoped API token
@@ -49,52 +49,57 @@ Goal: an empty but real app — SPA + `/api/health` on one Worker, deployed by C
 Terraform, local dev working. Everything later builds on this.
 
 ### 1.1 Monorepo tooling 🤖
-- [ ] `package.json` (`packageManager` pnpm pin), `pnpm-workspace.yaml`, `turbo.json`
+- [x] `package.json` (`packageManager` pnpm pin), `pnpm-workspace.yaml`, `turbo.json`
       (tasks: build, dev, lint, typecheck, test; `env` for `VITE_*`), `.nvmrc`
-- [ ] `packages/config`: shared `tsconfig` (strict), ESLint (flat config), Prettier
-- [ ] Root scripts: `dev`, `build`, `lint`, `typecheck`, `test`, `format`
+- [x] `packages/config`: shared `tsconfig` (strict), ESLint (flat config), Prettier
+- [x] Root scripts: `dev`, `build`, `lint`, `typecheck`, `test`, `format`
 
 ### 1.2 `packages/shared` 🤖
-- [ ] Package setup + `health.schema.ts` as the first shared zod schema
-- [ ] Export pattern used by both apps (`@repo/shared`)
+- [x] Package setup + `health.schema.ts` as the first shared zod schema
+- [x] Export pattern used by both apps (`@repo/shared`)
 
 ### 1.3 `apps/api` — the Worker 🤖
-- [ ] Hono app: `index.ts`, `app.ts`, `routes/index.ts`, `GET /api/health`
-- [ ] `env.ts` (zod-validated env), `lib/errors.ts` + `app.onError`, `middleware/deps.ts`
-- [ ] `wrangler.toml`: name, `compatibility_date`, `nodejs_compat`, observability, `[vars]`,
+- [x] Hono app: `index.ts`, `app.ts` (single route chain → `AppType`), `GET /api/health`
+- [x] `env.ts` (zod-validated env), `lib/errors.ts` + `app.onError`, `middleware/deps.ts`
+- [x] `wrangler.toml`: name, `compatibility_date`, `nodejs_compat`, observability, `[vars]`,
       `[assets]` → `../web/dist` with SPA fallback + `run_worker_first = ["/api/*"]`,
       queue producer/consumer (consumer handler can be a no-op for now)
-- [ ] `wrangler types` → `worker-configuration.d.ts`; `AppType` export for the RPC client
-- [ ] Vitest + `@cloudflare/vitest-pool-workers`; test for `/api/health`
+- [x] `wrangler types` → `worker-configuration.d.ts`; `AppType` export for the RPC client
+- [x] Vitest + `@cloudflare/vitest-plugin` (renamed from vitest-pool-workers); tests for
+      `/api/health`, JSON 404, queue consumer
 
 ### 1.4 Database & cache plumbing 🤖
-- [ ] Drizzle config, `db/client.ts` (Neon HTTP driver), `db/schema/index.ts`, `db:generate`
+- [x] Drizzle config, `db/client.ts` (Neon HTTP driver), `db/schema/index.ts`, `db:generate`
       / `db:migrate` scripts (no tables yet — first real table comes with auth)
-- [ ] `lib/cache.ts` (Upstash REST client), `lib/queue.ts` (`enqueue`)
+- [x] `lib/cache.ts` (Upstash REST client), `lib/queue.ts` (`enqueue`)
 
 ### 1.5 `apps/web` — the SPA 🤖
-- [ ] Vite + React + TS, TanStack Router (file routes), TanStack Query, `lib/api-client.ts`
-      (`hc<AppType>('/api')`)
-- [ ] Tailwind v4 + shadcn init (`components.json`), `styles/globals.css` tokens (light + dark),
+- [x] Vite + React + TS, TanStack Router (file routes), TanStack Query, `lib/api-client.ts`
+      (`hc<AppType>('/').api`, types via `api/app-type` declarations)
+- [x] Tailwind v4 + shadcn init (`components.json`), `styles/globals.css` tokens (light + dark),
       `cn()`, ThemeProvider, fonts
-- [ ] Responsive app shell (top bar, container) + Home placeholder that calls `/api/health`
-- [ ] Vite dev proxy: `/api` → `localhost:8787` with `ws: true`
+- [x] Responsive app shell (top bar, container) + Home placeholder that calls `/api/health`
+- [x] Vite dev proxy: `/api` → `localhost:8787` with `ws: true`
 
 ### 1.6 Local dev environment 🤖
-- [ ] `docker-compose.yml`: Postgres 17, Neon HTTP proxy, Redis 7, serverless-redis-http
-      (verify image names/versions — see `infra/README.md` §5)
-- [ ] `apps/api/.dev.vars.example`, `apps/web/.env.example`, `.envrc.example`
-- [ ] 👤 copy examples to real files; `docker compose up -d && pnpm dev` works
+- [x] `docker-compose.yml`: Postgres 17, Neon HTTP proxy, Redis 7, serverless-redis-http
+      (images verified to exist; **not run yet** — Docker isn't enabled in WSL here)
+- [x] `apps/api/.dev.vars.example`, `apps/web/.env.example`, `.envrc.example`
+- [ ] 👤 enable Docker Desktop WSL integration; copy examples to real files;
+      `docker compose up -d && pnpm dev` works (API + SPA already verified without Docker)
 
 ### 1.7 Terraform 🤖 (+ 👤 review plan)
-- [ ] `infra/envs/prod`: `versions.tf` (cloud block, pinned providers), `providers.tf`,
+- [x] `infra/envs/prod`: `versions.tf` (cloud block, pinned providers), `providers.tf`,
       `variables.tf`, `terraform.tfvars`, `main.tf`, `outputs.tf`, committed lock file
-- [ ] Modules: `neon_db`, `upstash_redis`, `queue` (`app_secrets` waits for post-MVP auth)
-- [ ] Outputs exactly: `database_url`, `upstash_redis_rest_url`, `upstash_redis_rest_token`,
+- [x] Modules: `neon_db`, `upstash_redis`, `queue` (`app_secrets` waits for post-MVP auth)
+- [x] Outputs exactly: `database_url`, `upstash_redis_rest_url`, `upstash_redis_rest_token`,
       `queue_name`
 - [ ] 👤 locally: `terraform init && terraform validate && terraform plan` looks right
 
 ### 1.8 First deploy 🤖 + 👤
+- [ ] 👤 fill the Phase 0 placeholders first: `CHANGE-ME` in `apps/api/wrangler.toml`
+      (`APP_URL` subdomain) and `infra/envs/prod/versions.tf` (HCP org); confirm regions in
+      `terraform.tfvars`
 - [ ] PR with 1.1–1.7 → CI green + plan comment → 👤 review → merge
 - [ ] `deploy.yml`: infra applies → app builds → migrations → Worker deployed
 - [ ] 👤 §1.2: now protect `main` (require PR + CI)

@@ -1,0 +1,6 @@
+# Local secrets for `wrangler dev` — copy to .dev.vars (gitignored). Values point at docker compose.
+APP_ENV=development
+APP_URL=http://localhost:5173
+DATABASE_URL=postgres://postgres:postgres@db.localtest.me:5432/main
+UPSTASH_REDIS_REST_URL=http://localhost:8079
+UPSTASH_REDIS_REST_TOKEN=local-dev-token

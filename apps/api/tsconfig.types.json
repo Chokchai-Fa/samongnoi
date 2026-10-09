@@ -1,0 +1,13 @@
+{
+  // Emits declaration files so apps/web can `import type { AppType } from 'api/app-type'`
+  // without type-checking Worker sources under DOM types.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "outDir": "dist/types",
+    "rootDir": "src"
+  },
+  "include": ["src/app.ts", "worker-configuration.d.ts"]
+}
