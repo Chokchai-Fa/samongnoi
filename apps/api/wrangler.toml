@@ -17,6 +17,9 @@ directory = "../web/dist"                   # build apps/web first (turbo does t
 not_found_handling = "single-page-application"  # unknown paths → index.html (client routing)
 run_worker_first = ["/api/*"]               # only API paths invoke the Worker; assets are free
 
+[ai]
+binding = "AI"                             # Workers AI fallback summarizer → c.env.AI (no Terraform)
+
 [[queues.producers]]
 binding = "JOBS_QUEUE"
 queue = "samongnoi-jobs"                    # must match the Terraform queue name

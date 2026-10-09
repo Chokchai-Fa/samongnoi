@@ -143,7 +143,7 @@ Events (zod schemas in `packages/shared/src/realtime.schema.ts`):
 
 ### AI providers
 
-All AI calls go through the **Vercel AI SDK** (`streamText` / `generateObject`), with model and
+All AI calls go through the **Vercel AI SDK** (`streamText` / `generateText` with `Output.object`), with model and
 provider choices in one file: `apps/api/src/lib/ai.ts`.
 
 | Use | Primary | Fallback (on 429 / quota / provider error) |
@@ -256,7 +256,8 @@ jobs/              queue-handler.ts → summarize.service.summarizeThread(deps, 
   `text/html` / `text/plain`. Errors → user-safe messages ("Couldn't read this page",
   "Page too large", "Unsupported content type").
 - Text sources skip fetch/extract.
-- `generateObject` with a zod schema `{ title, summary, keyPoints[3-6], suggestedQuestions[3] }`;
+- `generateText` with `Output.object` (AI SDK v7; `generateObject` is deprecated) and a zod schema
+  `{ title, summary, keyPoints[3-6], suggestedQuestions[3] }`;
   on provider failure use the fallback model; on invalid output retry once, then fail.
 - Queue `max_retries = 3`; on final failure set `status='failed'` + `error`.
 

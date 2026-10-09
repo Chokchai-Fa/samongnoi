@@ -1,7 +1,9 @@
 import { createMiddleware } from 'hono/factory';
 import { createDb, type Db } from '../db/client';
 import { parseConfig, type Config } from '../env';
+import { createAi, type AiClient } from '../lib/ai';
 import { createCache, type Cache } from '../lib/cache';
+import { fetchPage } from '../lib/fetch-page';
 import { createJobQueue } from '../lib/queue';
 import type { AppEnv } from '../types/app';
 import type { Deps } from '../types/deps';
@@ -14,6 +16,7 @@ export function createDeps(env: Env): Deps {
   let config: Config | undefined;
   let db: Db | undefined;
   let cache: Cache | undefined;
+  let ai: AiClient | undefined;
   const getConfig = () => (config ??= parseConfig(env));
 
   return {
@@ -27,6 +30,10 @@ export function createDeps(env: Env): Deps {
       const { UPSTASH_REDIS_REST_URL, UPSTASH_REDIS_REST_TOKEN } = getConfig();
       return (cache ??= createCache(UPSTASH_REDIS_REST_URL, UPSTASH_REDIS_REST_TOKEN));
     },
+    get ai() {
+      return (ai ??= createAi(getConfig(), env.AI));
+    },
+    fetchPage: (url) => fetchPage(url),
     queue: createJobQueue(env.JOBS_QUEUE),
   };
 }

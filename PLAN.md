@@ -12,9 +12,12 @@ Legend: 👤 you (manual / needs your accounts) · 🤖 Claude Code · ✅ done 
 - **Live:** https://app.samongnoi.workers.dev — empty app shell + `/api/health` on one Worker,
   infra (Neon, Upstash, Queue) managed by Terraform, CI/CD green, drift check "No changes".
 - **Done:** Phase 0 (except 👤 local tool upgrades + branch protection) and Phase 1.
-- **Phase 2 built locally, not merged:** guest identity + text threads. Checks pass; the prod
-  check (👤 below) happens after the PR merges and deploys.
-- **Next:** Phase 3 — pipeline (fetch → extract → AI summary).
+- **Done:** Phase 2 — guest identity + threads (merged, PR #6). The post-deploy check (👤 below)
+  is still open.
+- **Phase 3 built, not merged** (branch `feat/phase-3-pipeline`): fetch → extract → AI summary,
+  Link tab, polling, Retry and Delete for failed threads. Checks pass; live AI and the 👤 links
+  check need a deploy with keys.
+- **Next:** Phase 3 merge, then Phase 4 — live chat (start with the DO spike).
 - **Open 👤 items:** protect `main`; upgrade local Terraform to 1.16.x; enable Docker in WSL;
   check the live UI on phone + desktop; delete the Neon `test` project.
 
@@ -178,16 +181,20 @@ creating browser can delete; layouts match `docs/PRODUCT.md` at 375/768/1280.
 
 ## Phase 3 — Pipeline: fetch → extract → AI summary
 
-- [ ] 🤖 Add `GEMINI_API_KEY` wiring via `manage-secrets` (already set as a GitHub secret in Phase 0)
-- [ ] 🤖 `lib/ai.ts`: Gemini Flash primary, Workers AI fallback (`[ai]` binding), one place for models
-- [ ] 🤖 `lib/fetch-page.ts` (limits: http(s), 10 s, 3 redirects, 1 MB, html/text only) and
-      `lib/extract.ts` (HTMLRewriter)
-- [ ] 🤖 `summarize.service.ts` + `jobs/queue-handler.ts`: idempotent, status transitions,
-      `generateObject` → summary, key points, suggested questions; retries → `failed`
-- [ ] 🤖 New page Link tab; Home polling while pending; pending/failed cards + Retry (creator
-      browser only)
-- [ ] 🤖 Tests: extract on fixture HTML, pipeline with fake AI/fetch, failure paths
-- [ ] 👤 try ~10 real links (news, blog, docs, a bad URL)
+- [x] 🤖 `GEMINI_API_KEY` wiring (`manage-secrets`, kind 3): the GitHub secret and the
+      `deploy.yml` entry already existed; added the zod env field, a dev placeholder, and the test
+      binding
+- [x] 🤖 `lib/ai.ts`: Gemini Flash primary, Workers AI fallback (`[ai]` binding), one place for
+      models. Uses `generateText` + `Output.object` (`generateObject` is deprecated in AI SDK v7)
+- [x] 🤖 `lib/fetch-page.ts` (http(s) only, 10 s, 3 redirects, 1 MB, html/text only, no private
+      addresses) and `lib/extract.ts` (HTMLRewriter: title, Open Graph, article text)
+- [x] 🤖 `summarize.service.ts` + `jobs/queue-handler.ts`: idempotent, status transitions,
+      summary + key points + suggested questions; retries with backoff, then `failed` with Retry
+- [x] 🤖 New page Link tab (drafts kept across tabs); Home polls every 3 s while anything is
+      pending; pending/failed cards; Retry and Delete for the creator browser
+- [x] 🤖 Tests: extract on fixture HTML (real HTMLRewriter), fetch limits and redirects, pipeline
+      with fake AI/fetch, failure paths and retry rules
+- [ ] 👤 try ~10 real links (news, blog, docs, a bad URL) on the deployed app
 
 ✅ A pasted link becomes a ready thread with a good summary in < ~30 s; bad links fail
 gracefully with Retry; Gemini outage/429 falls back to Workers AI.
@@ -265,7 +272,15 @@ Design notes: `docs/PRODUCT.md` → "Post-MVP: auth & sharing".
 - Exact free-tier numbers drift (Gemini, Workers AI, Queues) — re-check when a limit is hit.
 - Docker image names for the local Neon HTTP proxy and serverless-redis-http — verify in 1.6.
 - DO behaviour for long-running AI streams — settled by the Phase 4 spike.
-- Workers 10 ms CPU on large pages — measured in Phase 3; lower the 1 MB cap if needed.
+- Workers 10 ms CPU on large pages — **not measured yet**: this container has no Cloudflare
+  runtime. Measure on the deployed Worker with a few large pages; lower the 1 MB cap if needed.
+- Gemini model id (`gemini-3.5-flash` in `lib/ai.ts`) — sources disagree on 2.5 Flash's
+  retirement date. Confirm the id in AI Studio before relying on it; Workers AI covers failures.
+- The Workers AI binding runs only against Cloudflare, even in dev. `pnpm dev` and the tests use
+  `apps/api/.local-wrangler.toml` (generated from `wrangler.toml` without `[ai]`), so locally only
+  Gemini summarizes.
+- Not built yet (Phase 5): per-IP and global caps for create and retry, and the 24 h cache of
+  recent URL fetches. Request bodies are not size-capped before JSON parsing either.
 - **Public, unauthenticated MVP**: anyone with the URL can post and chat. Per-IP + global caps
   protect quotas, but content is not private and could be spammed — don't advertise the URL
   until Phase 5 limits are live.
