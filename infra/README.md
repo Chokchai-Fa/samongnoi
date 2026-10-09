@@ -25,7 +25,7 @@ credit card**.
 | Upstash Redis database | **Terraform** | |
 | Cloudflare Queue `samongnoi-jobs` | **Terraform** | |
 | `BETTER_AUTH_SECRET` (`random_password`) — **post-MVP** | **Terraform** | |
-| Worker `samongnoi` (API + static assets + Durable Object + queue consumer + AI binding) | **wrangler** in CI | Code deploys; Terraform would fight wrangler over the script |
+| Worker `app` (API + static assets + Durable Object + queue consumer + AI binding) | **wrangler** in CI | Code deploys; Terraform would fight wrangler over the script |
 | Worker secrets | **wrangler** in CI (`secrets:` from Terraform outputs + GitHub secrets) | |
 | DB schema | **drizzle-kit** migrations in CI | |
 
@@ -35,7 +35,7 @@ Manual (once) ──► GitHub secrets ──► CI: terraform apply ──► N
                                           ▼
                                      CI: build web + api → migrate → wrangler deploy (+ secrets)
                                           ▼
-                         https://samongnoi.<subdomain>.workers.dev  (SPA + /api)
+                         https://app.samongnoi.workers.dev  (SPA + /api)
 ```
 
 ---
@@ -64,7 +64,7 @@ Record non-secret values (account IDs, subdomain, org name) in the table in §1.
 - [ ] **Account ID**: Workers & Pages → Overview → right sidebar. → GitHub secret
       `CLOUDFLARE_ACCOUNT_ID`.
 - [ ] **workers.dev subdomain**: Workers & Pages → Overview → set your subdomain once. The app
-      will live at `https://samongnoi.<subdomain>.workers.dev` — you need this URL for Google
+      will live at `https://app.samongnoi.workers.dev` — you need this URL for Google
       OAuth (§1.6) before the first deploy.
 - [ ] **API token**: My Profile → API Tokens → Create Token → *Custom token*:
       - Account → **Workers Scripts: Edit** (Worker, assets, Durable Objects, secrets)
@@ -110,9 +110,9 @@ the `manage-secrets` skill.
       - **Data access**: scopes `openid`, `email`, `profile` only.
 - [ ] **Clients** → Create client → *Web application*:
       - Authorized JavaScript origins:
-        `https://samongnoi.<subdomain>.workers.dev`, `http://localhost:5173`
+        `https://app.samongnoi.workers.dev`, `http://localhost:5173`
       - Authorized redirect URIs:
-        `https://samongnoi.<subdomain>.workers.dev/api/auth/callback/google`,
+        `https://app.samongnoi.workers.dev/api/auth/callback/google`,
         `http://localhost:5173/api/auth/callback/google`
 - [ ] → GitHub secrets `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`.
       (GitHub forbids secret names starting with `GITHUB_` — another reason this is Google.)
@@ -155,7 +155,7 @@ Generated secrets (`DATABASE_URL`, `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST
 | Value | Example | Goes into |
 |-------|---------|-----------|
 | Cloudflare workers.dev subdomain | `alice` | `apps/api/wrangler.toml` `APP_URL` |
-| App URL | `https://samongnoi.alice.workers.dev` | `wrangler.toml` `APP_URL`, Google OAuth client |
+| App URL | `https://app.samongnoi.workers.dev` (Worker `app` on subdomain `samongnoi`) | `wrangler.toml` `APP_URL`, Google OAuth client |
 | HCP organization | `alice-projects` | `infra/envs/prod/versions.tf` |
 | HCP workspace | `samongnoi-prod` | `infra/envs/prod/versions.tf` |
 | Region (Neon / Upstash) | `aws-ap-southeast-1` / `ap-southeast-1` | `infra/envs/prod/terraform.tfvars` |
@@ -237,7 +237,7 @@ Adding/removing one later → follow the `manage-secrets` skill.
    - The **first** `wrangler deploy` also creates the Durable Object class (`migrations` tag
      `v1`) and attaches the queue consumer.
 6. Verify:
-   - [ ] `https://samongnoi.<subdomain>.workers.dev/api/health` → `200`
+   - [ ] `https://app.samongnoi.workers.dev/api/health` → `200`
    - [ ] the SPA loads at `/`, and a deep link like `/threads/x` loads the SPA (not a 404)
    - [ ] Cloudflare dashboard → Worker → Settings → Variables shows the secrets (values hidden)
    - [ ] Neon console shows the project and the migrated tables

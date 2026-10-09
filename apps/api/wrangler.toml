@@ -1,6 +1,6 @@
 # The single Worker: Hono API on /api/* + the SPA (apps/web/dist) via Workers Static Assets.
 # Non-secret config only — this file is committed. Secrets are uploaded by CI (see CLAUDE.md).
-name = "samongnoi"                          # → https://samongnoi.<subdomain>.workers.dev
+name = "app"                                # → https://app.samongnoi.workers.dev
 main = "src/index.ts"
 compatibility_date = "2026-10-01"           # bump deliberately, never automatically
 compatibility_flags = ["nodejs_compat"]
@@ -10,8 +10,7 @@ enabled = true
 
 [vars]
 APP_ENV = "production"
-# TODO(phase 0): replace CHANGE-ME with your workers.dev subdomain (infra/README.md §1.3).
-APP_URL = "https://samongnoi.CHANGE-ME.workers.dev"
+APP_URL = "https://app.samongnoi.workers.dev"
 
 [assets]                                    # Workers Static Assets: the SPA
 directory = "../web/dist"                   # build apps/web first (turbo does this)

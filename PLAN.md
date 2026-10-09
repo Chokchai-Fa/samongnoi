@@ -23,7 +23,7 @@ Legend: 👤 you (manual / needs your accounts) · 🤖 Claude Code · ✅ done 
 
 Decisions 👤 (record answers in `infra/README.md` §1.9):
 - [ ] GitHub repo name + **private or public** (public = unlimited Actions minutes + approval gates)
-- [ ] Cloudflare `workers.dev` subdomain → app URL `https://samongnoi.<subdomain>.workers.dev`
+- [x] Cloudflare `workers.dev` subdomain `samongnoi`, Worker `app` → app URL `https://app.samongnoi.workers.dev`
 - [ ] Region for Neon + Upstash (closest to users)
 - [ ] HCP Terraform organization name
 

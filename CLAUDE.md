@@ -369,7 +369,7 @@ The Worker's config file, read by `wrangler dev` / `wrangler deploy`: name, entr
 version, bindings, and non-secret `[vars]`. `wrangler types` generates the `Env` type from it.
 
 ```toml
-name = "samongnoi"                           # → https://samongnoi.<subdomain>.workers.dev
+name = "app"                                 # → https://app.samongnoi.workers.dev
 main = "src/index.ts"
 compatibility_date = "2026-10-01"          # bump deliberately, never automatically
 compatibility_flags = ["nodejs_compat"]
@@ -379,7 +379,7 @@ enabled = true
 
 [vars]                                      # non-secret only — this file is committed
 APP_ENV = "production"
-APP_URL = "https://samongnoi.<subdomain>.workers.dev"   # WS Origin check; post-MVP Better Auth baseURL
+APP_URL = "https://app.samongnoi.workers.dev"   # WS Origin check; post-MVP Better Auth baseURL
 
 [assets]                                    # Workers Static Assets: the SPA
 directory = "../web/dist"                   # build apps/web first
