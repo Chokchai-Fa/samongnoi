@@ -25,6 +25,12 @@ variable "pg_version" {
   default = 17
 }
 
+variable "history_retention_seconds" {
+  type        = number
+  default     = 21600
+  description = "Point-in-time restore window. Free plan max is 6 h (21600 s); the provider's own default (24 h) is rejected."
+}
+
 variable "database_name" {
   type    = string
   default = "app"
@@ -41,8 +47,11 @@ resource "neon_project" "this" {
   region_id  = var.region_id
   pg_version = var.pg_version
 
-  # Free plan: leave compute size, autosuspend (scale to zero), and history retention at the
-  # plan defaults — setting values above the free limits makes the API reject the project.
+  # Must be set explicitly: the provider defaults to 24 h, above the free plan's 6 h maximum.
+  history_retention_seconds = var.history_retention_seconds
+
+  # Free plan: leave compute size and autosuspend (scale to zero) at the plan defaults —
+  # values above the free limits make the API reject the project.
   branch {
     name          = "main"
     database_name = var.database_name
