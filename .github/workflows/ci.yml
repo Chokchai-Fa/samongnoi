@@ -16,6 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
+      contents: read # job-level permissions replace the workflow's; private repos need this to check out
       pull-requests: read
     outputs:
       app: ${{ steps.filter.outputs.app }}
