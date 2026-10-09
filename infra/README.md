@@ -61,34 +61,45 @@ Record non-secret values (account IDs, subdomain, org name) in the table in §1.
 
 ### 1.3 Cloudflare (Workers, Static Assets, Durable Objects, Queues, Workers AI)
 - [ ] Sign up at dash.cloudflare.com (free plan, no card).
-- [ ] **Account ID**: Workers & Pages → Overview → right sidebar. → GitHub secret
-      `CLOUDFLARE_ACCOUNT_ID`.
+- [ ] **Account ID** (32 hex chars): Workers & Pages → Overview → right sidebar → **copy
+      button**, don't retype it. → GitHub secret `CLOUDFLARE_ACCOUNT_ID`. A one-character typo
+      makes every call fail with "Authentication error" / "Invalid account identifier", which
+      looks like a token problem — `scripts/verify-credentials.py` detects it.
 - [ ] **workers.dev subdomain**: Workers & Pages → Overview → set your subdomain once. The app
       will live at `https://app.samongnoi.workers.dev` — you need this URL for Google
       OAuth (§1.6) before the first deploy.
-- [ ] **API token**: My Profile → API Tokens → Create Token → *Custom token*:
+- [ ] **API token** — either kind works: *Manage Account → Account API Tokens* (account-owned,
+      recommended) or *My Profile → API Tokens* (user-owned). Create Token → *Custom token*:
       - Account → **Workers Scripts: Edit** (Worker, assets, Durable Objects, secrets)
       - Account → **Queues: Edit**
       - Account → **Account Settings: Read** (wrangler needs it to resolve the account)
       - Account Resources: *Include → your account only*
       - TTL: optional; set a reminder to rotate.
-      → GitHub secret `CLOUDFLARE_API_TOKEN`. If wrangler reports a missing permission, add
-      only the one it names.
+      → GitHub secret `CLOUDFLARE_API_TOKEN`. Grant only these three — not "all permissions".
+      Editing a token's permissions later keeps its value; rolling it creates a new value.
 
 ### 1.4 HCP Terraform (remote state)
 - [ ] Sign up at app.terraform.io (Free tier).
 - [ ] Create an **organization** (e.g. `your-name-projects`). Put the name in
       `infra/envs/prod/versions.tf` → `cloud { organization = "…" }`.
-- [ ] Create a **workspace** `samongnoi` → *CLI-driven workflow*.
+- [ ] Create a **workspace** → *CLI-driven workflow*. Its name must equal `workspaces.name` in
+      `versions.tf` (here: `samongnoi`).
 - [ ] Workspace → Settings → General → **Execution mode: Local**. (Terraform runs in GitHub
       Actions / your machine; HCP only stores, locks, and versions state.)
-- [ ] Create an API token: Organization → Settings → Teams → *owners* → Team API token
-      (or User settings → Tokens). → GitHub secret `TF_API_TOKEN`.
+- [ ] Create a **user** token: avatar → Account settings → Tokens → Create an API token (or an
+      *owners* **team** token). → GitHub secret `TF_API_TOKEN`.
+      ⚠️ **Not an organization token** (Organization settings → API tokens): it shows up as user
+      `api-org-…` and HCP won't let it lock or write state, so `plan` fails with
+      "Error acquiring the state lock: resource not found".
 - [ ] Locally: `terraform login` (stores a token in `~/.terraform.d/credentials.tfrc.json`).
 
 ### 1.5 Neon (Postgres) and Upstash (Redis)
-- [ ] **Neon**: sign up at neon.tech (free, no card). Account settings → API keys → create.
-      → GitHub secret `NEON_API_KEY`. **Don't create a project by hand** — Terraform does.
+- [ ] **Neon**: sign up at neon.tech (free, no card). Sign-up forces you to create a first
+      project — accept any name, then **delete it** (project → Settings → Delete) once you have
+      the key; Terraform creates the real one. API key: Organization settings → API keys →
+      create → GitHub secret `NEON_API_KEY`.
+- [ ] Copy your **Neon organization ID** (`org-…`, Organization settings; not secret) into
+      `neon_org_id` in `infra/envs/prod/terraform.tfvars` — API-created projects need it.
 - [ ] **Upstash**: sign up at upstash.com (free, no card). Account → Management API → create
       API key. → GitHub secrets `UPSTASH_EMAIL` (your login email) and `UPSTASH_API_KEY`.
       **Don't create a database by hand** — Terraform does.
@@ -125,6 +136,14 @@ the `manage-secrets` skill.
       a "don't save private content" notice.
 
 ### 1.8 GitHub Actions secrets — final checklist
+
+**Verify first** — before setting secrets, run the read-only checker against your values. It
+prints only statuses and non-secret names (never values) and explains each failure:
+
+```bash
+scripts/verify-credentials.py                 # reads .secrets.env (gitignored)
+```
+
 Set them with the script (hidden prompts → `gh secret set` via stdin; nothing is written to
 disk or shell history):
 
@@ -132,8 +151,9 @@ disk or shell history):
 scripts/setup-github-secrets.sh --repo <owner>/<repo>          # prompts for each value
 scripts/setup-github-secrets.sh --repo <owner>/<repo> --check  # ✓/✗ per secret
 ```
-Or fill a gitignored `.secrets.env` (`NAME=value` lines) and run with `--from-file .secrets.env`,
-then delete the file. Manual alternative: Settings → Secrets and variables → Actions →
+Or fill a gitignored `.secrets.env` (`NAME=value` lines; `chmod 600`) and run with
+`--from-file .secrets.env` — verify it with `scripts/verify-credentials.py` first. Delete the
+file afterwards, or keep it for local Terraform runs. Manual alternative: Settings → Secrets and variables → Actions →
 *Repository secrets*:
 
 | Secret | From | Used by |
@@ -244,6 +264,20 @@ Adding/removing one later → follow the `manage-secrets` skill.
 7. Done — from now on every change goes PR → merge → automatic deploy.
 
 ---
+
+## Troubleshooting (seen in practice)
+
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| Every Cloudflare call: "Authentication error"; account endpoint: "Invalid account identifier" | Typo in `CLOUDFLARE_ACCOUNT_ID` | Copy it with the copy button; `verify-credentials.py` names the right one |
+| `/user/tokens/verify` says "Invalid API Token" but the token is new | Account-owned token — verify via `/accounts/{id}/tokens/verify` instead | Nothing; the token is fine (the verifier handles both kinds) |
+| `terraform plan`: "Error acquiring the state lock: resource not found" | `TF_API_TOKEN` is an HCP **organization** token | Use a user or owners-team token (§1.4) |
+| `terraform init`: workspace not found | `workspaces.name` in `versions.tf` ≠ the workspace you created | Make them match |
+| Neon apply: "requested history retention seconds exceeds allowed maximum" | Provider defaults to 24 h; free plan max is 6 h | `history_retention_seconds = 21600` (set in the `neon_db` module) |
+| Upstash: `platform` "not expected" / `region` required | GitHub docs describe an unreleased provider version | Provider 2.1.x: `region = "global"` + `primary_region` |
+| Local `plan` shows in-place updates with no attribute changes, CI says "No changes" | Local Terraform older than CI's | Use the pinned version (1.16.x) everywhere |
+| CI `actions/checkout`: "Repository not found" (private repo) | Job-level `permissions:` replaced the workflow's `contents: read` | Add `contents: read` to that job's permissions |
+| Deploy fails after a merge that only changed `infra/README.md` | `infra/**` path filter matched docs | Filters are `infra/envs/**` + `infra/modules/**` |
 
 ## 4. Day-2 operations
 

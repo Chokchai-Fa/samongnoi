@@ -41,6 +41,10 @@ hidden input (or from a gitignored `.secrets.env`) and pipes them to `gh secret 
 - File mode (e.g. bulk setup): user fills `.secrets.env` with `NAME=value` lines →
   `scripts/setup-github-secrets.sh --repo <owner>/<repo> --from-file .secrets.env` → deletes the
   file. The script refuses files that aren't gitignored and only uploads names it knows.
+- **Verify values before setting them**: `scripts/verify-credentials.py` (reads `.secrets.env`,
+  or `--from-env`) checks each provider credential — token validity and permissions, account ID,
+  HCP token type/workspace/execution mode — printing only statuses and non-secret names. Claude
+  may run it; when a check fails, relay its hint instead of guessing.
 - **Claude may run `--check` itself** — it prints only names with ✓/✗, never values:
   `scripts/setup-github-secrets.sh --repo <owner>/<repo> --check` (exit code 1 if any missing).
 - Claude may also run `gh secret list --repo <owner>/<repo>` (names + dates only).
