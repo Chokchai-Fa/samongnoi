@@ -1,0 +1,46 @@
+name: Load Terraform outputs
+description: >
+  Read outputs of infra/envs/prod from HCP Terraform state and export each one to
+  $GITHUB_ENV as an UPPER_CASE env var (database_url → DATABASE_URL). Sensitive outputs are
+  masked in logs first. Only needs the HCP token — no provider credentials.
+
+inputs:
+  tf-api-token:
+    description: HCP Terraform API token
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - uses: hashicorp/setup-terraform@v3
+      with:
+        cli_config_credentials_token: ${{ inputs.tf-api-token }}
+        terraform_wrapper: false # raw stdout so the JSON is parseable
+
+    - name: terraform init
+      shell: bash
+      working-directory: infra/envs/prod
+      run: terraform init -input=false -no-color > /dev/null
+
+    - name: Export outputs to env
+      shell: bash
+      working-directory: infra/envs/prod
+      run: |
+        set -euo pipefail
+        out="$RUNNER_TEMP/tf-outputs.json"
+        terraform output -json > "$out"
+
+        for name in $(jq -r 'keys[]' "$out"); do
+          value=$(jq -r --arg n "$name" '.[$n].value | if type == "string" then . else tojson end' "$out")
+          sensitive=$(jq -r --arg n "$name" '.[$n].sensitive' "$out")
+          if [ "$sensitive" = "true" ]; then
+            echo "::add-mask::$value"
+          fi
+          if [[ "$value" == *$'\n'* ]]; then
+            echo "Output '$name' is multi-line; not supported." >&2
+            exit 1
+          fi
+          echo "$(echo "$name" | tr '[:lower:]' '[:upper:]')=$value" >> "$GITHUB_ENV"
+        done
+
+        rm -f "$out"

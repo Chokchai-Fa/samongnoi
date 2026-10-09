@@ -1,0 +1,35 @@
+# dependencies / build
+node_modules/
+dist/
+.turbo/
+.wrangler/
+coverage/
+*.tsbuildinfo
+
+# secrets & local env — never commit (templates *.example are committed)
+.env
+.env.*
+!.env.example
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+.envrc
+!.envrc.example
+.secrets.env
+
+# terraform (commit .terraform.lock.hcl; never commit state or plans)
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+tfplan
+plan.txt
+crash.log
+*.auto.tfvars.json
+
+# os / editor
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json

@@ -1,0 +1,16 @@
+name: Setup Node + pnpm
+description: Install pnpm and Node (from .nvmrc), restore the pnpm store cache, install deps.
+
+runs:
+  using: composite
+  steps:
+    - uses: pnpm/action-setup@v4
+
+    - uses: actions/setup-node@v4
+      with:
+        node-version-file: .nvmrc
+        cache: pnpm
+
+    - name: Install dependencies
+      shell: bash
+      run: pnpm install --frozen-lockfile
