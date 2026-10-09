@@ -6,6 +6,8 @@ import { writeLocalWranglerConfig } from './scripts/local-wrangler-config.mjs';
 const localConfig = writeLocalWranglerConfig();
 
 export default defineConfig({
+  // The first request in each file loads the worker and its modules; that can exceed 5 s here.
+  testTimeout: 15_000,
   plugins: [
     cloudflareTest({
       wrangler: { configPath: localConfig },
