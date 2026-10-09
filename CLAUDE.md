@@ -214,7 +214,7 @@ apps/web/src/
 ├── components/              # shared composed components (layout, nav, PageHeader, EmptyState)
 ├── styles/globals.css       # design tokens (Tailwind v4 @theme + CSS variables, light/dark)
 └── lib/
-    ├── api-client.ts        # single `hc<AppType>('/api')` instance — same origin, relative URLs
+    ├── api-client.ts        # `hc<AppType>('/').api` — same origin, relative URLs
     ├── query-client.ts      # TanStack Query defaults (retry, staleTime)
     └── utils.ts             # re-exports cn() from shadcn's `cn` package
 ```
