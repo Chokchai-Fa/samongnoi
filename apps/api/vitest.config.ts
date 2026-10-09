@@ -6,8 +6,11 @@ import { writeLocalWranglerConfig } from './scripts/local-wrangler-config.mjs';
 const localConfig = writeLocalWranglerConfig();
 
 export default defineConfig({
-  // The first request in each file loads the worker and its modules; that can exceed 5 s here.
-  testTimeout: 15_000,
+  test: {
+    // The first requests in a file wait for the worker and its modules to load, which can take
+    // longer than Vitest's 5 s default on a cold CI runner.
+    testTimeout: 30_000,
+  },
   plugins: [
     cloudflareTest({
       wrangler: { configPath: localConfig },
