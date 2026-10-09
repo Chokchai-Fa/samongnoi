@@ -45,6 +45,7 @@ jobs:
       - uses: hashicorp/setup-terraform@v3
         if: steps.exists.outputs.tf == 'true'
         with:
+          terraform_version: 1.16.5 # keep in sync with infra/envs/prod/versions.tf
           cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
           terraform_wrapper: false # keep real exit codes for -detailed-exitcode
 

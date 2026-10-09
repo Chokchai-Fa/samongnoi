@@ -86,7 +86,8 @@ Do **not** use:
   (file-based, type-safe), **TanStack Query** over the Hono RPC client (`hc<AppType>`),
   **Tailwind CSS + shadcn/ui**, **react-hook-form** + zod.
 - Tests: **Vitest**; API integration tests use `@cloudflare/vitest-pool-workers`.
-- Terraform >= 1.5.7; pin every provider version in `required_providers` and commit
+- Terraform 1.16.x, pinned in CI and `required_version` — an older local CLI shows phantom
+  in-place updates on state written by CI. Pin every provider version in `required_providers` and commit
   `.terraform.lock.hcl` (locked for linux + macOS).
 
 ## Common commands
