@@ -1,5 +1,5 @@
 terraform {
-  required_version = ">= 1.5.7"
+  required_version = "~> 1.16.0" # same as CI (setup-terraform); older CLIs misread newer state
 
   # State in HCP Terraform (Free), workspace in **Local** execution mode — Terraform runs in
   # GitHub Actions / locally; HCP only stores, locks, and versions state.

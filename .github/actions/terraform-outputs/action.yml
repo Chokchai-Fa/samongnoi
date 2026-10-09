@@ -14,6 +14,7 @@ runs:
   steps:
     - uses: hashicorp/setup-terraform@v3
       with:
+        terraform_version: 1.16.5 # keep in sync with infra/envs/prod/versions.tf
         cli_config_credentials_token: ${{ inputs.tf-api-token }}
         terraform_wrapper: false # raw stdout so the JSON is parseable
 

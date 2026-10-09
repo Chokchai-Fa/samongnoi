@@ -48,7 +48,7 @@ Record non-secret values (account IDs, subdomain, org name) in the table in §1.
 ### 1.1 Local tools
 - [ ] Node.js **22** (pinned in `.nvmrc`; wrangler 4 requires ≥ 22) — e.g. `nvm install 22`
 - [ ] pnpm: `corepack enable` (version pinned in root `package.json` `packageManager`)
-- [ ] Terraform ≥ 1.5.7
+- [ ] Terraform **1.16.x** (same as CI — e.g. `brew install hashicorp/tap/terraform` or tfenv)
 - [ ] Docker (for the local database/cache in §5)
 - [ ] Optional: `direnv` (loads `.envrc` automatically), GitHub CLI `gh`
 - wrangler is a dev dependency of `apps/api` — run it via `pnpm --filter api exec wrangler …`
@@ -174,7 +174,7 @@ infra/
 │   └── app_secrets/             # random_password for BETTER_AUTH_SECRET (post-MVP auth)
 └── envs/
     └── prod/
-        ├── versions.tf          # terraform >= 1.5.7, cloud {} block, pinned required_providers
+        ├── versions.tf          # terraform ~> 1.16.0, cloud {} block, pinned required_providers
         ├── providers.tf         # cloudflare, neon (kislerdm/neon), upstash, random
         ├── variables.tf         # cloudflare_account_id, regions, names
         ├── terraform.tfvars     # non-secret values only (committed)

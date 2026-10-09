@@ -22,22 +22,23 @@ Legend: 👤 you (manual / needs your accounts) · 🤖 Claude Code · ✅ done 
 ## Phase 0 — Accounts, repo, decisions (no code)
 
 Decisions 👤 (record answers in `infra/README.md` §1.9):
-- [ ] GitHub repo name + **private or public** (public = unlimited Actions minutes + approval gates)
+- [x] GitHub repo name + **private or public** (public = unlimited Actions minutes + approval gates)
 - [x] Cloudflare `workers.dev` subdomain `samongnoi`, Worker `app` → app URL `https://app.samongnoi.workers.dev`
-- [ ] Region for Neon + Upstash (closest to users)
-- [ ] HCP Terraform organization name
+- [x] Region for Neon + Upstash (closest to users)
+- [x] HCP Terraform organization name
 
 Setup — follow `infra/README.md` §1 in order:
-- [ ] 👤 §1.1 local tools (Node 22, pnpm via corepack, Terraform ≥ 1.5.7, Docker, gh)
-- [ ] 🤖 `git init`, first commit of the planning docs; `gh repo create … --source . --push`
+- [ ] 👤 §1.1 local tools (Node 22, pnpm via corepack, Terraform 1.16.x, Docker, gh) — left: upgrade
+      local Terraform 1.5.7 → 1.16.x, enable Docker WSL integration, `nvm alias default 22` (optional)
+- [x] 🤖 `git init`, first commit of the planning docs; `gh repo create … --source . --push`
 - [ ] 👤 §1.2 protect `main` (require PR + CI) — after CI exists (end of Phase 1)
-- [ ] 👤 §1.3 Cloudflare: account ID, subdomain, scoped API token
-- [ ] 👤 §1.4 HCP Terraform: org, workspace `samongnoi`, **Local execution mode**, token, `terraform login`
-- [ ] 👤 §1.5 Neon API key, Upstash API key (no projects/databases by hand)
+- [x] 👤 §1.3 Cloudflare: account ID, subdomain, scoped API token
+- [x] 👤 §1.4 HCP Terraform: org, workspace `samongnoi`, **Local execution mode**, token, `terraform login`
+- [x] 👤 §1.5 Neon API key, Upstash API key (no projects/databases by hand)
 - [ ] ~~👤 §1.6 Google OAuth client~~ — **skip until post-MVP auth**
-- [ ] 👤 §1.7 Gemini API key (AI Studio, free tier, no billing)
-- [ ] 👤 §1.8 `! scripts/setup-github-secrets.sh --repo <owner>/<repo>`
-- [ ] 🤖 `scripts/setup-github-secrets.sh --check` → all ✓
+- [x] 👤 §1.7 Gemini API key (AI Studio, free tier, no billing)
+- [x] 👤 §1.8 `! scripts/setup-github-secrets.sh --repo <owner>/<repo>`
+- [x] 🤖 `scripts/setup-github-secrets.sh --check` → all ✓
 
 ✅ All 7 MVP secrets set (`--check` all ✓); you can sign in to every dashboard; the four decisions are recorded.
 
@@ -94,14 +95,14 @@ Terraform, local dev working. Everything later builds on this.
 - [x] Modules: `neon_db`, `upstash_redis`, `queue` (`app_secrets` waits for post-MVP auth)
 - [x] Outputs exactly: `database_url`, `upstash_redis_rest_url`, `upstash_redis_rest_token`,
       `queue_name`
-- [ ] 👤 locally: `terraform init && terraform validate && terraform plan` looks right
+- [x] 👤 locally: `terraform init && terraform validate && terraform plan` looks right
 
 ### 1.8 First deploy 🤖 + 👤
 - [x] 👤 fill the Phase 0 placeholders first: `CHANGE-ME` in `apps/api/wrangler.toml`
       (`APP_URL` subdomain) and `infra/envs/prod/versions.tf` (HCP org); confirm regions in
       `terraform.tfvars`
-- [ ] PR with 1.1–1.7 → CI green + plan comment → 👤 review → merge
-- [ ] `deploy.yml`: infra applies → app builds → migrations → Worker deployed
+- [x] PR with 1.1–1.7 → CI green + plan comment → 👤 review → merge (PR #1; Neon retention fix PR #2)
+- [x] `deploy.yml`: infra applies → app builds → migrations → Worker deployed — live at https://app.samongnoi.workers.dev
 - [ ] 👤 §1.2: now protect `main` (require PR + CI)
 
 ✅ `https://…workers.dev/` shows the shell (light/dark, mobile + desktop) ·
