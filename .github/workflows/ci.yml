@@ -32,8 +32,9 @@ jobs:
               - 'package.json'
               - 'pnpm-lock.yaml'
               - 'turbo.json'
-            infra:
-              - 'infra/**'
+            infra: # Terraform code only — docs like infra/README.md don't trigger plan/apply
+              - 'infra/envs/**'
+              - 'infra/modules/**'
 
   app-checks:
     needs: changes
