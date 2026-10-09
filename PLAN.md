@@ -8,13 +8,26 @@ This file is the ordered to-do list — tick boxes as steps land on `main`.
 
 Legend: 👤 you (manual / needs your accounts) · 🤖 Claude Code · ✅ done when…
 
+## Status (2026-10-10)
+- **Live:** https://app.samongnoi.workers.dev — empty app shell + `/api/health` on one Worker,
+  infra (Neon, Upstash, Queue) managed by Terraform, CI/CD green, drift check "No changes".
+- **Done:** Phase 0 (except 👤 local tool upgrades + branch protection) and Phase 1.
+- **Next:** Phase 2 — guest identity + text threads.
+- **Open 👤 items:** protect `main`; upgrade local Terraform to 1.16.x; enable Docker in WSL;
+  check the live UI on phone + desktop; delete the Neon `test` project.
+
 ## How we work
-- One step ≈ one branch + PR (`feat/…`, `infra/…`, `chore/…`). CI must be green; merging to
-  `main` deploys automatically (`deploy.yml`).
-- Every PR that touches `infra/**` gets a Terraform plan comment — read it before merging.
-- Secrets: never in chat or git. 👤 sets values with `scripts/setup-github-secrets.sh`;
+- One step ≈ one branch + PR (`feat/…`, `fix/…`, `infra/…`, `chore/…`, `docs/…`). CI must be
+  green; merging to `main` deploys automatically (`deploy.yml`).
+- Every PR that touches `infra/envs/**` or `infra/modules/**` gets a Terraform plan comment —
+  read it before merging. Terraform is pinned to 1.16.5 (CI + `required_version`).
+- Secrets: never in chat or git. 👤 fills `.secrets.env` (gitignored); 🤖 runs
+  `scripts/verify-credentials.py` (statuses only), then `scripts/setup-github-secrets.sh`;
   🤖 wires names via the `manage-secrets` skill.
-- UI work follows the `design-system` skill and is checked at 375 / 768 / 1280px.
+- **UI must be easy to use and modern.** Every UI step follows the `design-system` skill — its
+  "UX principles" and "Modern visual style" guidelines — and passes its **UX review checklist**
+  (task in ≤ 3 taps, one clear primary action, loading/empty/error states, instant feedback,
+  375 / 768 / 1280px, light + dark, keyboard) before the PR is merged.
 - Scope changes → update `docs/PRODUCT.md` in the same PR.
 
 ---
@@ -29,7 +42,8 @@ Decisions 👤 (record answers in `infra/README.md` §1.9):
 
 Setup — follow `infra/README.md` §1 in order:
 - [ ] 👤 §1.1 local tools (Node 22, pnpm via corepack, Terraform 1.16.x, Docker, gh) — left: upgrade
-      local Terraform 1.5.7 → 1.16.x, enable Docker WSL integration, `nvm alias default 22` (optional)
+      local Terraform 1.5.7 → 1.16.x, enable Docker WSL integration, `nvm alias default 22` (optional).
+      Done: Node 22 installed via nvm, pnpm via corepack, gh logged in.
 - [x] 🤖 `git init`, first commit of the planning docs; `gh repo create … --source . --push`
 - [ ] 👤 §1.2 protect `main` (require PR + CI) — after CI exists (end of Phase 1)
 - [x] 👤 §1.3 Cloudflare: account ID, subdomain, scoped API token
@@ -39,6 +53,10 @@ Setup — follow `infra/README.md` §1 in order:
 - [x] 👤 §1.7 Gemini API key (AI Studio, free tier, no billing)
 - [x] 👤 §1.8 `! scripts/setup-github-secrets.sh --repo <owner>/<repo>`
 - [x] 🤖 `scripts/setup-github-secrets.sh --check` → all ✓
+- [x] 🤖 `scripts/verify-credentials.py` → all ✓ (added in PR #4 after Phase 0 found: a
+      Cloudflare account-ID typo, an HCP organization token that can't lock state, and the HCP
+      workspace being named `samongnoi`, not `samongnoi-prod`)
+- [ ] 👤 delete the Neon sign-up project `test` (Terraform manages only `samongnoi`)
 
 ✅ All 7 MVP secrets set (`--check` all ✓); you can sign in to every dashboard; the four decisions are recorded.
 
@@ -103,14 +121,28 @@ Terraform, local dev working. Everything later builds on this.
       `terraform.tfvars`
 - [x] PR with 1.1–1.7 → CI green + plan comment → 👤 review → merge (PR #1; Neon retention fix PR #2)
 - [x] `deploy.yml`: infra applies → app builds → migrations → Worker deployed — live at https://app.samongnoi.workers.dev
+- [x] 🤖 live checks: `/api/health` 200 (`env: production`), `/` + deep link serve the SPA,
+      unknown `/api/*` → JSON 404, assets 200, Worker secrets present, drift run "No changes"
+- [x] 🤖 pin Terraform 1.16.5 (PR #3) — local 1.5.7 showed phantom in-place updates
+- [ ] 👤 open the live URL on phone + desktop; light/dark toggle works
 - [ ] 👤 §1.2: now protect `main` (require PR + CI)
 
 ✅ `https://…workers.dev/` shows the shell (light/dark, mobile + desktop) ·
 `/api/health` → 200 · deep links load the SPA · Worker secrets visible (names) in Cloudflare ·
 Neon/Upstash/Queue exist · `pnpm dev` works locally.
 
-**Template upkeep:** copy the working scaffold back into `~/dev/project-template` (replace
-`samongnoi` with `__PROJECT_NAME__`) so future projects start with code.
+- [x] 🤖 **Template upkeep:** scaffold + all fixes copied into `~/dev/project-template` with
+      `__PROJECT_NAME__` / `CHANGE-ME` placeholders; generic `PLAN.md`; smoke-tested (fresh
+      project with a 39-char name: install, format, lint, typecheck, test, build,
+      `terraform validate` with 1.16.5).
+
+### Done log (Phase 0–1)
+| PR | What |
+|----|------|
+| #1 | Phase 1 scaffold (monorepo, Worker + SPA, Terraform, CI, local dev); CI fixes: `contents: read` for private repos, turbo build cycle, plan skips without secrets |
+| #2 | Neon `history_retention_seconds = 21600` (provider default 24 h exceeds the free plan) |
+| #3 | Pin Terraform 1.16.5 everywhere; Phase 0 + first deploy ticked |
+| #4 | `scripts/verify-credentials.py`; Phase 0 lessons + troubleshooting table in `infra/README.md` |
 
 ---
 
@@ -123,6 +155,9 @@ Neon/Upstash/Queue exist · `pnpm dev` works locally.
 - [ ] 🤖 `threads.routes/service/repository`: create (text), list all (cursor), get, delete
       (creator browser only → else 403); responses expose `isMine`, never raw ids
 - [ ] 🤖 Shared schemas in `packages/shared/threads.schema.ts`
+- [ ] 🤖 Reusable UI patterns first (design-system skill): `PageHeader`, `EmptyState` (icon +
+      one-line explanation + primary action), list/card skeletons, toasts (`sonner`),
+      `ConfirmDialog` / undo toast — every later screen reuses them
 - [ ] 🤖 Web: Home (all threads, "by …" + "Mine" badge, empty state, FAB on mobile), New page
       (Text tab + public-content notice), Thread page (header + content, Copy link), delete
       with confirm (only on Mine)
@@ -174,6 +209,11 @@ phone with the keyboard open; airplane-mode toggle reconnects cleanly.
 ---
 
 ## Phase 5 — Limits & polish → MVP
+
+- [ ] 🤖 UX pass on every screen with the design-system **UX review checklist**; fix anything
+      that needs more than 3 taps, lacks feedback, or reads unclear; consistent spacing/type
+- [ ] 👤 5-minute hallway test: a friend saves a link and asks a question without help — note
+      every hesitation and fix the top issues
 
 - [ ] 🤖 `rate-limit.service.ts` (Redis): per-IP + global daily caps for create / ask / retry
       (numbers in `docs/PRODUCT.md` → "Abuse protection") → friendly `429` UI
