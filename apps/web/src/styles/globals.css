@@ -115,3 +115,54 @@
     @apply bg-background text-foreground min-h-dvh font-sans antialiased;
   }
 }
+
+/*
+ * Page changes (View Transitions API). Going deeper slides the new page in from the right, going
+ * back from the left, like a phone's navigation stack. Browsers without view-transition types keep
+ * the default fade; reduced motion keeps the instant change.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: 280ms;
+    animation-timing-function: cubic-bezier(0.2, 0.7, 0.2, 1);
+    animation-fill-mode: both;
+    mix-blend-mode: normal;
+  }
+  html:active-view-transition-type(forward)::view-transition-old(root) {
+    animation-name: page-out-left;
+  }
+  html:active-view-transition-type(forward)::view-transition-new(root) {
+    animation-name: page-in-right;
+  }
+  html:active-view-transition-type(back)::view-transition-old(root) {
+    animation-name: page-out-right;
+  }
+  html:active-view-transition-type(back)::view-transition-new(root) {
+    animation-name: page-in-left;
+  }
+}
+
+@keyframes page-in-right {
+  from {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes page-out-left {
+  to {
+    transform: translateX(-30%);
+  }
+}
+
+@keyframes page-in-left {
+  from {
+    transform: translateX(-100%);
+  }
+}
+
+@keyframes page-out-right {
+  to {
+    transform: translateX(100%);
+  }
+}

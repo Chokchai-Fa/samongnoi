@@ -1,6 +1,6 @@
 import type { ThreadSummary } from '@repo/shared';
 import { useQueryClient } from '@tanstack/react-query';
-import { EllipsisVertical, Link2, Trash2 } from 'lucide-react';
+import { EllipsisVertical, Link2, RefreshCw, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -16,10 +16,12 @@ interface ThreadActionsMenuProps {
   thread: ThreadSummary;
   /** Runs right after a delete is scheduled, e.g. to leave the thread's page. */
   onDelete?: () => void;
+  /** Re-reads the thread and its chat. Phones can also pull the page down to do this. */
+  onRefresh?: () => void;
 }
 
 /** The ⋯ menu. Always visible (no hover-only actions); delete appears only for the creator. */
-export function ThreadActionsMenu({ thread, onDelete }: ThreadActionsMenuProps) {
+export function ThreadActionsMenu({ thread, onDelete, onRefresh }: ThreadActionsMenuProps) {
   const queryClient = useQueryClient();
   const title = thread.title ?? 'Untitled';
 
@@ -36,6 +38,12 @@ export function ThreadActionsMenu({ thread, onDelete }: ThreadActionsMenuProps) 
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-44">
+        {onRefresh && (
+          <DropdownMenuItem onSelect={onRefresh}>
+            <RefreshCw />
+            Refresh
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem onSelect={() => void copyThreadLink(thread.id)}>
           <Link2 />
           Copy link

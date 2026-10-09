@@ -1,16 +1,17 @@
 import type { PresenceUser } from '@repo/shared';
 import { GuestAvatar } from '@/features/guest/components/guest-avatar';
+import { cn } from '@/lib/utils';
 
 const SHOWN = 3;
 
 /** Who is in this thread right now: up to three avatars, then a count. */
-export function PresenceBar({ users }: { users: PresenceUser[] }) {
+export function PresenceBar({ users, className }: { users: PresenceUser[]; className?: string }) {
   if (users.length === 0) return null;
   const shown = users.slice(0, SHOWN);
   const extra = users.length - shown.length;
   return (
     <div
-      className="text-muted-foreground flex items-center gap-3 text-sm"
+      className={cn('text-muted-foreground flex items-center gap-3 text-sm', className)}
       aria-label={`${users.length} here now`}
     >
       <div className="flex -space-x-2">

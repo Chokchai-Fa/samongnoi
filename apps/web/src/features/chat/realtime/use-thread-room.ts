@@ -14,6 +14,8 @@ import {
 
 /** Close code the server uses when the thread was deleted. */
 const THREAD_DELETED_CLOSE = 4404;
+/** The longest live message events wait for a conversation re-read to land. */
+const RE_READ_HOLD_MAX_MS = 5000;
 /** How long a typing indicator stays after the last ping from that person. */
 const TYPING_FOR_MS = 3000;
 /** Our own typing pings are sent at most this often. */
@@ -35,6 +37,8 @@ export function useThreadRoom(threadId: string, options: { onDeleted: () => void
   const [connected, setConnected] = useState(false);
   const [presence, setPresence] = useState<PresenceUser[]>([]);
   const [typers, setTypers] = useState<Record<string, Typer>>({});
+  // Bumped by reconnect() to open a fresh socket now instead of waiting out the backoff.
+  const [generation, setGeneration] = useState(0);
   const socket = useRef<WebSocket | null>(null);
   const lastTypingSent = useRef(0);
   const onDeleted = useRef(options.onDeleted);
@@ -46,6 +50,16 @@ export function useThreadRoom(threadId: string, options: { onDeleted: () => void
     let closed = false;
     let attempt = 0;
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    // While the conversation is re-read after a (re)connect, message events wait here: a re-read
+    // that lands after them would otherwise overwrite them with an older copy of the list.
+    let reReading = false;
+    const held: ServerEvent[] = [];
+
+    const applyMessage = (event: ServerEvent) => {
+      queryClient.setQueryData<MessagePages>(messageKeys.list(threadId), (data) =>
+        applyMessageEvent(data, event),
+      );
+    };
 
     const dispatch = (event: ServerEvent) => {
       switch (event.type) {
@@ -66,9 +80,8 @@ export function useThreadRoom(threadId: string, options: { onDeleted: () => void
           onDeleted.current();
           return;
         default:
-          queryClient.setQueryData<MessagePages>(messageKeys.list(threadId), (data) =>
-            applyMessageEvent(data, event),
-          );
+          if (reReading) held.push(event);
+          else applyMessage(event);
       }
     };
 
@@ -82,8 +95,23 @@ export function useThreadRoom(threadId: string, options: { onDeleted: () => void
       ws.onopen = () => {
         attempt = 0;
         setConnected(true);
-        // Anything sent while we were away is in the database, so re-read it.
-        void queryClient.invalidateQueries({ queryKey: messageKeys.list(threadId) });
+        // Anything sent while we were away is in the database, so re-read it. Then apply the events
+        // that came in meanwhile. Deltas are skipped: the re-read may already hold their text, and
+        // the completed event carries the whole answer anyway.
+        reReading = true;
+        const release = () => {
+          if (!reReading) return;
+          reReading = false;
+          for (const event of held.splice(0)) {
+            if (event.type !== 'message.delta') applyMessage(event);
+          }
+        };
+        // A re-read that hangs must not hold live events for long.
+        const giveUp = setTimeout(release, RE_READ_HOLD_MAX_MS);
+        void queryClient.invalidateQueries({ queryKey: messageKeys.list(threadId) }).finally(() => {
+          clearTimeout(giveUp);
+          release();
+        });
       };
       ws.onmessage = (raw) => {
         try {
@@ -125,7 +153,7 @@ export function useThreadRoom(threadId: string, options: { onDeleted: () => void
       socket.current = null;
       setConnected(false);
     };
-  }, [threadId, guest.clientId, guest.clientName, queryClient]);
+  }, [threadId, guest.clientId, guest.clientName, queryClient, generation]);
 
   // Drop typing indicators once they expire.
   useEffect(() => {
@@ -150,8 +178,10 @@ export function useThreadRoom(threadId: string, options: { onDeleted: () => void
     }
   }, []);
 
+  const reconnect = useCallback(() => setGeneration((n) => n + 1), []);
+
   // Expired typers are removed by the interval above, so rendering never reads the clock.
   const typingNames = Object.values(typers).map((typer) => typer.name);
 
-  return { connected, presence, typingNames, sendTyping };
+  return { connected, presence, typingNames, sendTyping, reconnect };
 }

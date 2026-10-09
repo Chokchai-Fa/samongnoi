@@ -3,8 +3,9 @@ import { Sparkles } from 'lucide-react';
 import { GuestAvatar } from '@/features/guest/components/guest-avatar';
 import { formatRelativeTime } from '@/lib/format';
 import { cn } from '@/lib/utils';
+import { MarkdownMessage } from './markdown-message';
 
-/** One message. The AI's answer streams in with a caret; a failed one says why. */
+/** One message. Its text is Markdown (tables, lists, code, diagrams); an answer streams in; a failed one says why. */
 export function ChatMessage({ message }: { message: Message }) {
   const isAi = message.role === 'assistant';
   const author = isAi ? 'AI' : (message.authorName ?? 'Guest');
@@ -34,20 +35,15 @@ export function ChatMessage({ message }: { message: Message }) {
         </p>
         <div
           className={cn(
-            'rounded-2xl px-4 py-2.5 leading-relaxed break-words whitespace-pre-wrap',
+            'min-w-0 rounded-2xl px-4 py-2.5 leading-relaxed break-words',
             isAi ? 'bg-card border' : 'bg-secondary text-secondary-foreground',
             message.status === 'failed' && 'border-destructive',
           )}
         >
-          {message.content}
-          {streaming && (
-            <span
-              aria-hidden="true"
-              className="bg-foreground ml-0.5 inline-block h-4 w-0.5 animate-pulse align-middle motion-reduce:animate-none"
-            />
-          )}
-          {streaming && !message.content && (
-            <span className="text-muted-foreground">Thinking…</span>
+          {message.content ? (
+            <MarkdownMessage content={message.content} streaming={streaming} />
+          ) : (
+            streaming && <span className="text-muted-foreground">Thinking…</span>
           )}
         </div>
         {message.status === 'failed' && message.error && (
