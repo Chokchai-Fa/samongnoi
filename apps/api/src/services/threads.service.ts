@@ -11,6 +11,7 @@ import {
   type ThreadRow,
   type ThreadSummaryRow,
 } from '../repositories/threads.repository';
+import { notifyRoom } from '../lib/rooms';
 import type { Deps } from '../types/deps';
 import type { GuestIdentity } from '../types/guest';
 
@@ -108,6 +109,7 @@ export async function deleteThread(deps: Deps, guest: GuestIdentity, id: string)
     throw new ForbiddenError('Only the browser that saved this thread can delete it');
   }
   await deleteThreadById(deps.db, id);
+  await notifyRoom(deps.rooms, id, { type: 'thread.deleted' });
 }
 
 /** Sends a failed thread back through the pipeline. Only its creator, and only when it failed. */

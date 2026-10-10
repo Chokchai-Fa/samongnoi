@@ -1,3 +1,4 @@
+export { ThreadRoom } from './durable-objects/thread-room';
 import app from './app';
 import { handleQueue } from './jobs/queue-handler';
 

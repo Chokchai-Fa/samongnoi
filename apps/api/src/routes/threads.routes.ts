@@ -11,26 +11,26 @@ import {
 } from '../services/threads.service';
 import type { AppEnv } from '../types/app';
 
-// Every thread route needs the guest headers (they decide `isMine` and who may delete or retry).
+// Guest identity is applied per route, not with `.use()`: a router-level middleware would also run
+// for the WebSocket upgrade under /threads, which browsers cannot send guest headers on.
 export const threadsRoutes = new Hono<AppEnv>()
-  .use(guestMiddleware)
-  .get('/', validate('query', listThreadsQuerySchema), async (c) => {
+  .get('/', guestMiddleware, validate('query', listThreadsQuerySchema), async (c) => {
     const page = await listThreads(c.var.deps, c.var.guest, c.req.valid('query'));
     return c.json(page);
   })
-  .post('/', validate('json', createThreadSchema), async (c) => {
+  .post('/', guestMiddleware, validate('json', createThreadSchema), async (c) => {
     const thread = await createThread(c.var.deps, c.var.guest, c.req.valid('json'));
     return c.json(thread, 202);
   })
-  .get('/:id', validate('param', threadIdParamSchema), async (c) => {
+  .get('/:id', guestMiddleware, validate('param', threadIdParamSchema), async (c) => {
     const thread = await getThread(c.var.deps, c.var.guest, c.req.valid('param').id);
     return c.json(thread);
   })
-  .post('/:id/retry', validate('param', threadIdParamSchema), async (c) => {
+  .post('/:id/retry', guestMiddleware, validate('param', threadIdParamSchema), async (c) => {
     const thread = await retryThread(c.var.deps, c.var.guest, c.req.valid('param').id);
     return c.json(thread, 202);
   })
-  .delete('/:id', validate('param', threadIdParamSchema), async (c) => {
+  .delete('/:id', guestMiddleware, validate('param', threadIdParamSchema), async (c) => {
     await deleteThread(c.var.deps, c.var.guest, c.req.valid('param').id);
     return c.body(null, 204);
   });

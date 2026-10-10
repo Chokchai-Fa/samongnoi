@@ -2,12 +2,32 @@ import type { Thread } from '@repo/shared';
 import { ChevronDown } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
-/** The AI summary, key points and questions. Open by default; the user can fold it away. */
-export function SummaryPanel({ thread }: { thread: Thread }) {
+interface SummaryPanelProps {
+  thread: Thread;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+/**
+ * The AI summary, key points and questions. Folded away on phones once the chat starts, and then
+ * its first line stays under the title so the reader still sees what the thread is about.
+ */
+export function SummaryPanel({ thread, open, onOpenChange }: SummaryPanelProps) {
   return (
-    <Collapsible defaultOpen className="bg-card flex flex-col gap-4 rounded-xl border p-4 md:p-5">
-      <CollapsibleTrigger className="group flex w-full items-center justify-between gap-2 rounded-sm text-left outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50">
-        <span className="text-base font-semibold">Summary</span>
+    <Collapsible
+      open={open}
+      onOpenChange={onOpenChange}
+      className="bg-card flex flex-col gap-4 rounded-xl border p-4 md:p-5"
+    >
+      <CollapsibleTrigger className="group flex w-full items-center justify-between gap-3 rounded-sm text-left outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50">
+        <span className="flex min-w-0 flex-col gap-1">
+          <span className="text-base font-semibold">Summary</span>
+          {thread.summary && (
+            <span className="text-muted-foreground line-clamp-1 text-sm group-data-[state=open]:hidden">
+              {thread.summary}
+            </span>
+          )}
+        </span>
         <ChevronDown
           className="text-muted-foreground size-4 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180 motion-reduce:transition-none"
           aria-hidden="true"

@@ -1,5 +1,6 @@
 import { extractPage, extractPlainText } from '../lib/extract';
 import { PageError } from '../lib/fetch-page';
+import { notifyRoom } from '../lib/rooms';
 import { findThreadById, updateThread } from '../repositories/threads.repository';
 import type { Deps } from '../types/deps';
 
@@ -68,9 +69,22 @@ export async function summarizeThread(deps: Deps, threadId: string): Promise<voi
     keyPoints: summary.keyPoints,
     suggestedQuestions: summary.suggestedQuestions,
   });
+
+  await notifyRoom(deps.rooms, threadId, {
+    type: 'thread.updated',
+    status: 'ready',
+    title: title ?? summary.title,
+    summary: summary.summary,
+  });
 }
 
 /** Records a failure the user can act on (Retry). The queue also uses it when retries run out. */
 export async function failThread(deps: Deps, threadId: string, message: string): Promise<void> {
   await updateThread(deps.db, threadId, { status: 'failed', error: message });
+  await notifyRoom(deps.rooms, threadId, {
+    type: 'thread.updated',
+    status: 'failed',
+    title: null,
+    summary: null,
+  });
 }

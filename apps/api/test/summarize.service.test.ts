@@ -44,6 +44,26 @@ describe('summarizeThread', () => {
     expect(summarize).toHaveBeenCalledTimes(1);
   });
 
+  it('tells the thread room that the summary is ready, so open pages refresh', async () => {
+    const { deps, rooms } = makeFakeDeps();
+    const thread = await createThread(deps, alice, {
+      type: 'text',
+      title: 'My notes',
+      content: 'Some text',
+    });
+
+    await summarizeThread(deps, thread.id);
+
+    expect(rooms.notify).toHaveBeenCalledWith(
+      thread.id,
+      expect.objectContaining({
+        type: 'thread.updated',
+        status: 'ready',
+        summary: summary.summary,
+      }),
+    );
+  });
+
   it('summarizes a pasted text thread without fetching anything, keeping the user title', async () => {
     const { deps, fetchPage, summarize } = makeFakeDeps();
     const thread = await createThread(deps, alice, {

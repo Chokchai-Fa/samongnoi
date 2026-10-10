@@ -117,29 +117,57 @@ AI requests so answers arrive in order.
   error codes). The socket is for server → client events, plus tiny client → server
   `typing` pings.
 - **Socket checks:** the Worker **checks the `Origin` header equals `APP_URL`** (blocks other
-  sites from opening sockets to us), validates the display name from the query string, and
-  forwards the upgrade to the DO with `{ name, presenceId }` attached, where
-  `presenceId = sha256(clientId)` truncated (never the raw id).
-- **Source of truth is Neon.** The DO only relays events. On (re)connect the client refetches
-  messages over HTTP, then applies live events — so missed events are never lost.
+  sites from opening sockets to us) and validates the display name in the query string
+  (`?name=`). Browsers cannot set headers on a WebSocket, so the guest id travels in the
+  subprotocol list: `Sec-WebSocket-Protocol: samongnoi, cid.<clientId>`. The server agrees to
+  `samongnoi`, the only one it knows (a browser drops a socket whose server echoes no requested
+  protocol). The upgrade goes to the DO with `presenceId = sha256(clientId)` truncated, never the
+  raw id. Errors: a foreign origin is `403`, a missing id `400`, an unknown thread `404`.
+- **Source of truth is Neon.** The DO only relays events. On (re)connect the client re-reads
+  messages over HTTP. Live events that arrive during that re-read are held and applied once it
+  lands (at most 5 s), so an older copy of the list can't overwrite them. Deltas are not replayed,
+  because the re-read may already hold their text; `message.completed` carries the whole answer.
+- **Sending** does not re-read the list. The question shows at once, from the id the POST returns,
+  and the room's `message.created` event replaces that copy with the server's version.
 - **Fallback:** if the socket can't connect after retries, the thread page polls messages
   every 5 s and shows replies when complete (no token streaming).
-- **Spike first (phase 4):** confirm the AI stream keeps running inside the DO after `ask()`
-  returns. If it doesn't, `POST /messages` awaits the full generation (the client ignores the
-  response body; tokens still arrive over the socket).
+- **Refresh:** pulling down from the top of a thread (touch screens) and the `⋯` menu's Refresh
+  re-read the thread and its messages, and reconnect the socket if it is down.
+**Spike outcome (phase 4).** Question: does a stream started inside the DO keep running after the
+RPC that started it has returned, with Hibernation on and two sockets attached? If not, the POST
+would have to wait for the whole answer.
+
+- **Method:** a throwaway branch (`spike/thread-room`, never merged). Its `ThreadRoom` accepted
+  sockets through the Hibernation API and ran a ~27 s word-by-word stream inside `ctx.waitUntil()`.
+  A client script opened two sockets, then POSTed once.
+- **Local result (`wrangler dev`):** a foreign `Origin` got no socket; both sockets received the
+  same deltas in order; the POST returned long before the stream ended; the stream finished on
+  both sockets. `apps/api/test/realtime.test.ts` covers the same flow in the real Worker and room,
+  with the model faked.
+- **Decision:** `POST /messages` returns `202` once the room has accepted the job. Generation runs
+  inside `ctx.waitUntil()`, and the room answers one question at a time. Cloudflare's Durable
+  Objects lifecycle docs describe pending `waitUntil()` work as keeping the object active, which is
+  why the stream outlives the RPC. Re-read those docs when deploying.
+- **Not yet verified on Cloudflare.** After the first deploy, with two browsers: a question streams
+  to both; reloading mid-answer shows the streaming message, then the full answer; a viewer who
+  leaves drops off the presence list. A reply stuck in `streaming` for 10 minutes shows as failed,
+  which is how an answer lost to an evicted object appears.
 
 Events (zod schemas in `packages/shared/src/realtime.schema.ts`):
 
 | Direction | Event | Payload |
 |-----------|-------|---------|
-| server → client | `message.created` | full message (user's, or assistant placeholder) |
+| server → client | `message.created` | full message: the user's question and the assistant's empty placeholder; `isMine` is per viewer |
 | server → client | `message.delta` | `{ messageId, text }` (append) |
-| server → client | `message.completed` / `message.failed` | `{ messageId, content?, error? }` |
+| server → client | `message.completed` / `message.failed` | `{ messageId, content }` / `{ messageId, error }` |
 | server → client | `presence` | `{ users: [{ presenceId, name }] }` |
 | server → client | `typing` | `{ presenceId, name }` (client hides after 3 s) |
-| server → client | `thread.updated` | `{ status, title?, summary? }` |
-| server → client | `thread.deleted` | `{}` → viewers are sent back to Home |
-| client → server | `typing` | `{}` (throttled to 1 per 2 s) |
+| server → client | `thread.updated` | `{ status, title, summary }` (nullable); viewers refetch the thread |
+| server → client | `thread.deleted` | `{}` → viewers go back to Home; the room closes their sockets with `4404` |
+| client → server | `typing` | `{}` (relayed at most once per 2 s per socket) |
+
+A client's close is answered with `1000`, or with its own `3000–4999` code. Codes such as `1001`
+and `1005` (no code) cannot be sent back by an application, so they become `1000`.
 
 ### AI providers
 
@@ -149,10 +177,10 @@ provider choices in one file: `apps/api/src/lib/ai.ts`.
 | Use | Primary | Fallback (on 429 / quota / provider error) |
 |-----|---------|-------------------------------------------|
 | Summarize | Google **Gemini Flash** (`@ai-sdk/google`) — very large context, whole article in one call | Workers AI 8B model (`workers-ai-provider`), content truncated to fit |
-| Chat | Gemini Flash | Groq (`@ai-sdk/groq`, optional, very fast) → Workers AI |
+| Chat | Gemini Flash, streamed | Workers AI, only if Gemini fails before its first chunk (a switch mid-answer would splice two models' answers) |
 
-- `GEMINI_API_KEY` (and optional `GROQ_API_KEY`) are third-party secrets — add them with the
-  `manage-secrets` skill. Workers AI needs no key (`[ai]` binding).
+- `GEMINI_API_KEY` is the only AI secret — add it with the `manage-secrets` skill. Workers AI
+  needs no key (`[ai]` binding). Groq is not used.
 - **Privacy:** Gemini's free tier may use prompts/responses to improve Google's products, and
   all content is public in the MVP anyway — the New page notice covers both.
 - Free tiers change often — only `lib/ai.ts` should need editing when they do.
@@ -163,6 +191,10 @@ provider choices in one file: `apps/api/src/lib/ai.ts`.
 |---------|--------|
 | Extraction | `HTMLRewriter`: `<title>`, `og:title/description/image/site_name`, text of `article`/`main`/`p`/`h1-h3`/`li`; skip `script/style/nav/footer/aside` |
 | Home list updates | Polling (only while something is pending) |
+| Chat text | Markdown with GitHub tables (`react-markdown`, `remark-gfm`, and `remark-breaks` so Enter-made line breaks show). Raw HTML is shown as text, images are dropped, and links without a safe address are plain text |
+| Diagrams | Mermaid, loaded the first time a ` ```mermaid ` block is drawn, with `securityLevel: 'strict'`. Drawn only when the answer is complete |
+| Page changes | View Transitions API. Going deeper slides in from the right, going back from the left. Browsers without view-transition types fade; reduced motion keeps the instant change |
+| Pull to refresh | Touch screens only. The page follows the finger at half speed; the browser's own overscroll reload is switched off while it is on |
 | Cache (Upstash) | Rate-limit counters (per IP + global); dedupe recent URL fetches (24 h) |
 
 ### Free-tier budget (checked Oct 2026)
@@ -207,7 +239,9 @@ messages
   author_name  text null                                  -- display name at send time; null for the AI
   content      text
   status       enum('streaming','complete','failed') default 'complete'
+  error        text null                                 -- user-safe message when failed
   created_at   timestamptz
+  index (thread_id, created_at desc, id desc)           -- paging, newest first
 ```
 Post-MVP auth adds Better Auth's tables and nullable `owner_id` / `author_id` columns
 (expand → backfill by claim → contract); nothing here needs to be dropped.
@@ -225,8 +259,8 @@ Every request carries `X-Client-Id` / `X-Client-Name` (guest identity). Rate lim
 | DELETE | `/threads/:id` | creator browser | — | `204`; others → `403` · DO broadcasts `thread.deleted` |
 | POST | `/threads/:id/retry` | creator browser | — | `202` (only when `failed`) |
 | GET | `/threads/:id/messages` | anyone | `?cursor` | `{ items, nextCursor }` oldest → newest, with `authorName`, `isMine` |
-| POST | `/threads/:id/messages` | anyone | `{ content }` | `202 { messageId }` — reply arrives over WS |
-| GET | `/threads/:id/ws` | anyone (Origin-checked) | `?name` | `101` WebSocket upgrade → ThreadRoom |
+| POST | `/threads/:id/messages` | anyone | `{ content }`, 1–2000 chars | `202 { messageId }`, reply arrives over WS · `409` until the summary is ready · `400` empty · `404` unknown |
+| GET | `/threads/:id/ws` | anyone (Origin-checked) | `?name`, subprotocol `cid.<clientId>` | `101` upgrade → ThreadRoom · `403` foreign origin · `400` no client id · `404` unknown thread |
 
 Shared zod schemas: `packages/shared` → `guest.schema.ts` (headers, name rules),
 `threads.schema.ts`, `messages.schema.ts`, `realtime.schema.ts`.
@@ -234,17 +268,21 @@ Shared zod schemas: `packages/shared` → `guest.schema.ts` (headers, name rules
 ## Backend file map
 
 ```
-routes/            threads.routes.ts, messages.routes.ts, realtime.routes.ts (ws upgrade)
+routes/            threads.routes.ts, messages.routes.ts, realtime.routes.ts (ws upgrade),
+                   health.routes.ts
 middleware/        guest.ts — parse/validate X-Client-Id / X-Client-Name → c.var.guest
                    { key: sha256(clientId), name }; client-ip.ts → c.var.ip
 services/          threads.service.ts       create, list, get, delete, retry (+ enqueue)
                    summarize.service.ts     fetch → extract → summarize → save → notify room
-                   chat.service.ts          build prompt from thread + history, run model
-                   rate-limit.service.ts    per-IP + global daily counters (Redis)
+                   chat.service.ts          post/list messages; answer: prompt, stream, save
+                   realtime.service.ts      thread must exist, then hand the upgrade to the room
+                   rate-limit.service.ts    per-IP + global daily counters (Redis) — Phase 5
 repositories/      threads, messages
 durable-objects/   thread-room.ts           ThreadRoom DO: sockets (hibernation), presence,
-                                            serialized ask() → chat.service, broadcast events
-lib/               ai.ts (providers, models, fallback), extract.ts, fetch-page.ts, hash.ts
+                                            typing relay, serialized ask() → chat.service
+lib/               ai.ts (providers, models, fallback), extract.ts, fetch-page.ts, hash.ts,
+                   chat-prompt.ts (prompt + fences), prompt.ts (defangTags), rooms.ts (DO client),
+                   presence.ts, cursor.ts
 jobs/              queue-handler.ts → summarize.service.summarizeThread(deps, threadId)
 ```
 `index.ts` must also `export { ThreadRoom }`; the DO is declared in `wrangler.toml`
@@ -256,26 +294,37 @@ jobs/              queue-handler.ts → summarize.service.summarizeThread(deps, 
   `text/html` / `text/plain`. Errors → user-safe messages ("Couldn't read this page",
   "Page too large", "Unsupported content type").
 - Text sources skip fetch/extract.
-- `generateText` with `Output.object` (AI SDK v7; `generateObject` is deprecated) and a zod schema
-  `{ title, summary, keyPoints[3-6], suggestedQuestions[3] }`;
-  on provider failure use the fallback model; on invalid output retry once, then fail.
+- `generateText` with `Output.object` on Gemini (AI SDK v7; `generateObject` is deprecated) and a zod
+  schema `{ title, summary, keyPoints[3-6], suggestedQuestions[3] }`. On provider failure the
+  Workers AI fallback asks for plain JSON and validates it with the same schema instead of
+  `json_schema` mode, which was the suspected cause of the production fallback failures. That is not
+  confirmed yet; the AI failure logs show the cause after the next deploy. Invalid output fails the
+  attempt, and the queue retries it.
 - Queue `max_retries = 3`; on final failure set `status='failed'` + `error`.
 
 ## Chat rules (`chat.service.ts` via `ThreadRoom`)
-- **One answer at a time per thread**: the DO queues `ask()` calls; later askers see
-  "AI is answering Guest 4821…" and their question is answered next.
+- **One answer at a time per thread**: the DO queues `ask()` calls. Everyone sees the question and
+  an empty answer at once; a queued answer fills in on its turn. The streaming cursor shows the
+  wait; a separate "AI is answering Guest 4821…" line is not built.
 - Prompt = system instructions + title/summary + content (whole content with Gemini; truncated
   for the fallback) + last 10 messages **labelled with display names** ("Guest 4821: …") + new
   question. The AI addresses the asker and can see what others said.
 - System prompt: answer from the source; say clearly when the source doesn't cover something
-  (general knowledge allowed, labelled as such); reply in the asker's language.
+  (general knowledge allowed, labelled as such); reply in the asker's language; use Markdown where
+  it helps (short lists, tables, fenced code, and a Mermaid block for a flow or a relationship); no
+  HTML and no images.
 - **Prompt injection**: page content, display names, and other people's messages are untrusted
   data — wrap them in delimiters and tell the model to ignore instructions inside them. No
   tools → impact is limited to answer text.
 - Save the user message (`complete`) and an assistant placeholder (`streaming`) before calling
-  the model; update it to `complete`/`failed` at the end, so a reload mid-answer shows the
-  right state.
-- Rate limits checked before calling the model → `429` with a friendly inline message.
+  the model. The partial text is saved every 1.5 s, and the message becomes `complete` or `failed`
+  at the end, so a reload mid-answer shows the right state. A `streaming` message older than 10
+  minutes shows as `failed`.
+- **Fallback only before the first chunk:** if Gemini fails before it streams anything, Workers AI
+  answers instead (with the source shortened to fit). A switch mid-answer would splice two models'
+  answers, so a failure after the first chunk ends the answer as `failed`.
+- Rate limits checked before calling the model → `429` with a friendly inline message
+  (Phase 5: not built yet).
 
 ## Frontend file map
 
@@ -285,21 +334,28 @@ features/guest/
   hooks/       useGuest — create/read clientId + name in localStorage, rename
   components/  GuestNameMenu (top bar), GuestAvatar (initials + color from name)
 features/threads/
-  api/         useThreads (infinite + polling while pending), useThread, useCreateThread,
-               useDeleteThread, useRetryThread
-  components/  ThreadCard, ThreadCardPending, ThreadCardFailed, NewThreadForm (Tabs: Link|Text),
-               ThreadHeader (Copy link), SummaryPanel
+  api/         use-threads (polls every 3 s while anything is pending), use-thread (polls while
+               pending), use-create-thread, use-retry-thread, delete-thread
+  components/  thread-card, threads-board, new-thread-tabs (Link | Text), link-thread-form,
+               text-thread-form, save-bar, thread-view (two panes on desktop), thread-actions-menu,
+               summary-panel, retry-button, delete-thread-button
+  lib/         status.ts (isWorking, workingMessage, failedMessage), copy-thread-link.ts
 features/chat/
-  api/         useMessages (history), useSendMessage
-  realtime/    useThreadRoom — WS connect, backoff reconnect, refetch on reconnect, visibility
-               reconnect, apply events to the TanStack Query cache, polling fallback
-  components/  ChatMessages, ChatMessage (avatar, name, markdown, streaming cursor),
-               ChatInput (sends typing pings), SuggestedQuestions, PresenceBar, TypingIndicator
+  api/         use-messages (history; polls every 5 s while the socket is down), use-send-message
+  realtime/    use-thread-room — WS connect with the cid subprotocol, backoff reconnect, refetch on
+               open, visibility reconnect, typing expiry, events applied to the query cache
+  lib/         chat-state.ts — message cache rules, socket URL and protocols, reconnect delay
+  components/  chat-panel (list, input, "New messages ↓", "Reconnecting…"), chat-message,
+               markdown-message (tables, code, links, streaming caret), mermaid-diagram (drawn
+               once the answer is complete), chat-input (Enter sends, Shift+Enter adds a line),
+               suggested-questions, presence-bar, typing-indicator
 lib/api-client.ts  adds X-Client-Id / X-Client-Name to every request
 ```
-shadcn primitives: button, card, input, textarea, tabs, form, label, skeleton, badge,
-scroll-area, dropdown-menu, alert-dialog (delete), avatar, tooltip, collapsible, sonner.
-Markdown: `react-markdown`.
+Chat text is Markdown, for questions and answers alike: GitHub tables, lists, code, links, and
+Mermaid diagrams. Raw HTML is shown as text, images are dropped, and unsafe links are plain text, so
+an answer cannot load pictures from other sites or run script. Shared pieces: `components/pull-to-refresh.tsx`
+and `lib/use-media-query.ts`; page-change direction lives in `lib/navigation-direction.ts`.
+shadcn primitives live in `components/ui/` (see the design-system skill).
 
 ## Responsive design (required — mobile and desktop are both first-class)
 
@@ -311,13 +367,14 @@ Every page must be checked at **375px, 768px, and 1280px** before it's done.
 | App shell | Compact top bar (logo, guest-name menu); content full width with `px-4` | Top bar with "+ New" button; content `max-w-6xl mx-auto` |
 | Home | Single-column card list; **floating "+" button** bottom-right above the safe area | Card grid: 2 cols at `md`, 3 cols at `lg` |
 | New | Full-screen page; form fields full width; **submit button sticky at bottom** | Centered card `max-w-xl`; submit inline |
-| Thread | Back button + title + presence avatars (max 3, "+N") in top bar; summary in a **collapsible** at top (auto-collapses after the first message); chat fills the rest; **input sticky at bottom** | **Two panes**: left = source + summary + key points (scrolls independently, ~2/5 width); right = presence bar + chat (~3/5) |
+| Thread | Back button, title, presence avatars (max 3, "+N") and the `⋯` menu in the header. Source and summary stacked first; the summary folds away once messages exist, and its first line stays under the title. Then the chat, with the **question box sticky at the bottom** | **Two panes**: left = source + summary + key points (scrolls independently, ~2/5 width); right = presence bar + chat (~3/5) |
 | Suggested questions | Horizontally scrollable chip row | Wrapped chip row |
 
 Mobile rules:
 - Use `h-dvh` / `min-h-dvh` (not `h-screen`) so layouts survive mobile browser bars and the
   on-screen keyboard; pad fixed bottom elements with `pb-[env(safe-area-inset-bottom)]`.
-- Touch targets ≥ 44×44px; spacing between tappable items ≥ 8px.
+- Touch targets ≥ 44×44px on phones (buttons, inputs, the `⋯` menu); from `md:` the desktop sizes
+  return. Spacing between tappable items ≥ 8px.
 - No hover-only actions: thread actions (copy link, delete, retry, open original) live in a
   visible `⋯` dropdown button.
 - Inputs/textarea use `text-base` (16px) to stop iOS zoom-on-focus.
@@ -327,6 +384,11 @@ Mobile rules:
 - Long URLs/titles: `truncate` / `line-clamp-2` / `break-words` — never horizontal page scroll.
 - Reconnect the WebSocket when the tab becomes visible again (mobile browsers suspend sockets
   in the background).
+- On phones the page scrolls, not the chat, so new messages are followed by scrolling the page.
+- Pull down from the top to refresh a thread (touch screens). The `⋯` menu has **Refresh** for
+  everyone else.
+- The viewport sets `interactive-widget=resizes-content`, so the question box stays above the
+  on-screen keyboard on Android.
 
 ## UX notes (applies the design-system skill's guidelines to this app)
 
@@ -344,6 +406,11 @@ Mobile rules:
 - The guest name is set silently ("Guest 4821"); renaming lives in the top-bar menu — never a
   blocking prompt before first use.
 - Chat answers stream with a subtle cursor; the input keeps its draft if sending fails.
+- A diagram waits for the end of its answer and says so until then. One that can't be drawn
+  shows an error and its source.
+- Pages slide like a phone's navigation: going deeper (Home → a thread, New) comes in from the
+  right; going back (the thread's back button, the logo) comes in from the left. Reduced motion
+  keeps the instant change.
 
 ## Build phases
 

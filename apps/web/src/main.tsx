@@ -6,10 +6,18 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { AppToaster } from './components/app-toaster';
 import { ThemeProvider } from './components/theme-provider';
+import { transitionTypes } from './lib/navigation-direction';
 import { queryClient } from './lib/query-client';
 import { routeTree } from './routeTree.gen';
 
-const router = createRouter({ routeTree, defaultPreload: 'intent' });
+const router = createRouter({
+  routeTree,
+  defaultPreload: 'intent',
+  // Page changes slide like a phone's navigation stack (see lib/navigation-direction.ts).
+  defaultViewTransition: {
+    types: ({ fromLocation, toLocation }) => transitionTypes(fromLocation, toLocation),
+  },
+});
 
 declare module '@tanstack/react-router' {
   interface Register {
