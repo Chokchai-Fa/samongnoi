@@ -8,6 +8,11 @@ compatibility_flags = ["nodejs_compat"]
 [observability]
 enabled = true
 
+[triggers]
+# Daily write to Upstash so the free database isn't archived for inactivity (~30 days).
+# Free plan: 5 cron triggers per account. Handler: src/jobs/scheduled-handler.ts.
+crons = ["17 3 * * *"]
+
 [vars]
 APP_ENV = "production"
 APP_URL = "https://app.samongnoi.workers.dev"

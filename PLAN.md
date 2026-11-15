@@ -284,8 +284,8 @@ Design notes: `docs/PRODUCT.md` → "Post-MVP: auth & sharing".
   deployed Worker (checklist in `docs/PRODUCT.md`).
 - Workers 10 ms CPU on large pages — **not measured yet**: this container has no Cloudflare
   runtime. Measure on the deployed Worker with a few large pages; lower the 1 MB cap if needed.
-- Gemini model id (`gemini-3.5-flash` in `lib/ai.ts`) — sources disagree on 2.5 Flash's
-  retirement date. Confirm the id in AI Studio before relying on it; Workers AI covers failures.
+- Gemini model id — `gemini-3.6-flash` since Nov 2026 (3.5 Flash is deprecated and only
+  auto-routes to 3.6). Recheck the deprecations page now and then; Workers AI covers failures.
 - The Workers AI binding runs only against Cloudflare, even in dev. `pnpm dev` and the tests use
   `apps/api/.local-wrangler.toml` (generated from `wrangler.toml` without `[ai]`), so locally only
   Gemini summarizes.

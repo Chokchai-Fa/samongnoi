@@ -25,19 +25,19 @@ when scope or the API changes.
 owner 👤/🤖, and done criteria). Work on the next unchecked step, and tick boxes in the PR that
 completes them.
 
-## Service stack (free tier, no credit card — checked Oct 2026)
+## Service stack (free tier, no credit card — checked Nov 2026)
 
 | Concern          | Provider                          | Free-tier limits to respect                                                  | Terraform provider          |
 |------------------|-----------------------------------|-------------------------------------------------------------------------------|-----------------------------|
-| App hosting      | **One** Cloudflare Worker: Hono API on `/api/*` + SPA via **Workers Static Assets** | API: 100K requests/day, **10 ms CPU/request**, 3 MB compressed bundle. Static asset requests are free and don't count | none (deployed by wrangler) |
+| App hosting      | **One** Cloudflare Worker: Hono API on `/api/*` + SPA via **Workers Static Assets** | API: 100K requests/day, **10 ms CPU/request**, 64 MiB uncompressed bundle (no compressed limit since Sep 2026), 5 cron triggers/account. Static asset requests are free and don't count | none (deployed by wrangler) |
 | Queue / jobs     | Cloudflare Queues                 | 10,000 operations/day (~3 per message), 24 h retention                        | `cloudflare/cloudflare`     |
-| AI (primary)     | Google Gemini API (Flash only)    | ~1,500 req/day; free-tier prompts may be used for training                    | none (`GEMINI_API_KEY` secret) |
+| AI (primary)     | Google Gemini API (Flash only)    | Flash/Flash-Lite only (Pro left the free tier Apr 2026); Google no longer publishes free RPD — check AI Studio; free-tier prompts are used for training | none (`GEMINI_API_KEY` secret) |
 | AI (fallback)    | Cloudflare Workers AI (binding)   | **10,000 Neurons/day**, resets 00:00 UTC                                      | none (wrangler `[ai]` binding) |
-| Realtime         | Durable Objects (SQLite-backed)   | 100K requests/day on Free; use WebSocket Hibernation                          | none (wrangler `durable_objects`) |
-| Postgres         | Neon (serverless HTTP driver)     | 0.5 GB/project, 100 CU-hrs/month, scales to zero                              | `kislerdm/neon` (community) |
-| Cache            | Upstash Redis (REST)              | 256 MB, 500K commands/month                                                   | `upstash/upstash`           |
-| Terraform state  | HCP Terraform (Free)              | 500 managed resources, 1 concurrent run; workspace in Local execution mode    | built-in `cloud {}` block   |
-| CI/CD            | GitHub Actions                    | Free minutes                                                                  | —                           |
+| Realtime         | Durable Objects (SQLite-backed)   | 100K requests/day; SQLite storage billed since Jan 2026 but Free includes 5 GB, 5M rows read + 100K written/day; use WebSocket Hibernation | none (wrangler `durable_objects`) |
+| Postgres         | Neon (serverless HTTP driver)     | 1 GB/project (since Oct 2026), 100 CU-hrs/month, **5 GB egress/month** (over → compute suspended), scales to zero | `kislerdm/neon` (community) |
+| Cache            | Upstash Redis (REST)              | 256 MB, 500K commands/month (FAQ also says 10K/day), 10 GB bandwidth; **archived after ~30 days without activity** — the daily cron in `jobs/scheduled-handler.ts` keeps it active | `upstash/upstash`           |
+| Terraform state  | HCP Terraform (Free)              | 500 managed resources, 1 concurrent run (legacy per-user free plan ended Mar 2026); workspace in Local execution mode | built-in `cloud {}` block   |
+| CI/CD            | GitHub Actions                    | Private repos: $12 compute/month ≈ 2,000 Linux minutes; public repos free | —                           |
 
 Fallback for queues if the Cloudflare Queues free quota is too small: Upstash QStash (HTTP push).
 
@@ -49,7 +49,7 @@ Do **not** use:
   no CORS is needed, and the WebSocket `Origin` check is simple. The SPA is served by the same Worker as the API.
 - **Render Postgres** — free instances expire after 30 days.
 - Node-only frameworks/libraries on the backend (NestJS, Express, Fastify, `pg`/`pgx`-style TCP
-  drivers, native modules) — they don't fit the Workers runtime or the 3 MB bundle limit.
+  drivers, native modules) — they don't fit the Workers runtime, and big bundles slow cold starts.
 
 ## Repository layout
 
@@ -147,6 +147,7 @@ apps/api/src/
 │                            #   transport only — calls services, never Drizzle directly
 ├── jobs/
 │   ├── queue-handler.ts     # Workers `queue()` consumer: validate message → call a service
+│   ├── scheduled-handler.ts # Workers `scheduled()` (cron in wrangler.toml): Upstash keep-alive
 │   └── messages.ts          # zod schemas for queue payloads
 ├── lib/
 │   ├── errors.ts            # AppError, NotFoundError, ValidationError, ConflictError, ...
@@ -188,8 +189,9 @@ tests/                       # mirrors src/: services/*.test.ts, routes/*.test.t
 
 ### Workers constraints to design for
 - 10 ms CPU per request: no heavy CPU work in requests; push it to the queue or avoid it.
-- Keep the bundle under 3 MB compressed: check `wrangler deploy --dry-run --outdir dist`
-  size before adding a dependency; prefer Web-standard, edge-compatible libraries.
+- Keep the bundle small: the hard limit is 64 MiB uncompressed, but size adds startup time
+  (1 s limit). Check `wrangler deploy --dry-run --outdir dist` before adding a dependency;
+  prefer Web-standard, edge-compatible libraries.
 - No TCP sockets: Postgres via Neon's HTTP driver, Redis via Upstash REST.
 - Use `c.executionCtx.waitUntil()` for fire-and-forget work after responding.
 
@@ -386,6 +388,9 @@ compatibility_flags = ["nodejs_compat"]
 
 [observability]
 enabled = true
+
+[triggers]
+crons = ["17 3 * * *"]                     # daily Upstash keep-alive (src/jobs/scheduled-handler.ts)
 
 [vars]                                      # non-secret only — this file is committed
 APP_ENV = "production"

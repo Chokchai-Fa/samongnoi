@@ -81,7 +81,8 @@ Counters live in Redis with a TTL to midnight UTC (`rate-limit.service.ts`).
 | Ask the AI | 50 | 1,000 | `429` same, shown inline in chat |
 | Retry summary | 5 | — | `429` |
 
-- Global caps stay well under the Gemini free tier (~1,500 req/day) and Workers AI fallback.
+- Global caps stay well under the Gemini free tier (no published daily limit since 2026 —
+  watch AI Studio) and the Workers AI fallback.
   Tune them from real usage.
 - Content caps (below) bound Neon storage per thread.
 - If bots show up: add **Cloudflare Turnstile** (free, no card; Terraform-managed widget) to the
@@ -197,8 +198,9 @@ provider choices in one file: `apps/api/src/lib/ai.ts`.
 | Pull to refresh | Touch screens only. The page follows the finger at half speed; the browser's own overscroll reload is switched off while it is on |
 | Cache (Upstash) | Rate-limit counters (per IP + global); dedupe recent URL fetches (24 h) |
 
-### Free-tier budget (checked Oct 2026)
-- **Gemini free tier:** Flash models only, ~1,500 requests/day (limits change — check AI Studio).
+### Free-tier budget (checked Nov 2026)
+- **Gemini free tier:** Flash/Flash-Lite only. Google no longer publishes free daily limits —
+  check AI Studio. Model: `gemini-3.6-flash` (3.5 Flash is deprecated and only auto-routes).
 - **Workers AI (fallback): 10,000 Neurons/day.**
 - **Durable Objects (Free): 100,000 requests/day**, SQLite storage only. Use WebSocket
   Hibernation; incoming WS messages are billed at a fraction of a request — keep `typing`
@@ -207,7 +209,10 @@ provider choices in one file: `apps/api/src/lib/ai.ts`.
 - **Workers: 10 ms CPU** per invocation. Waiting on `fetch`/AI doesn't count, parsing does →
   cap fetched HTML at **1 MB**, stream it through HTMLRewriter, cap stored content at
   **~60K characters**.
-- **Neon 0.5 GB**: ~60 KB/thread max → thousands of threads; global create cap keeps growth bounded.
+- **Neon 1 GB** per project: ~60 KB/thread max → thousands of threads; global create cap keeps
+  growth bounded. **5 GB egress/month** — over it, compute suspends until next month.
+- **Upstash:** free databases are archived after ~30 days without activity; a daily cron write
+  (`jobs/scheduled-handler.ts`) keeps it active.
 
 ## Data model (Drizzle, `apps/api/src/db/schema/`)
 
