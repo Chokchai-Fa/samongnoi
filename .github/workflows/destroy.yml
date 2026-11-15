@@ -17,6 +17,10 @@ on:
         description: 'Also delete the Worker "app" with wrangler (it is not in Terraform state)'
         type: boolean
         default: true
+      forget_missing_redis:
+        description: 'Redis was deleted outside Terraform (plan fails with 404): drop it from state first (needs apply)'
+        type: boolean
+        default: false
       confirm:
         description: 'Type "samongnoi" to confirm when apply is ticked'
         type: string
@@ -40,6 +44,9 @@ jobs:
       cancel-in-progress: false
     defaults:
       run:
+        # Explicit `bash` = `bash -eo pipefail`; the implicit default lacks pipefail, so a
+        # failing `terraform plan | tee` would pass and apply would run with no plan file.
+        shell: bash
         working-directory: infra/envs/prod
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -85,6 +92,19 @@ jobs:
 
       - name: terraform init
         run: terraform init -input=false
+
+      # The Upstash provider errors on refresh (404 "database not found") instead of dropping a
+      # database that no longer exists, which blocks every plan. Forget it in state only —
+      # nothing in Upstash is touched. Changes state, so it only runs with apply.
+      - name: Forget missing Redis database in state
+        if: inputs.apply && inputs.forget_missing_redis
+        run: |
+          addr='module.upstash_redis.upstash_redis_database.this'
+          if terraform state list | grep -qxF "$addr"; then
+            terraform state rm -lock-timeout=5m "$addr"
+          else
+            echo "$addr is not in state; nothing to do."
+          fi
 
       # Without the database, target every other module (Terraform has no "exclude").
       # Add new modules from main.tf here when they're created.
