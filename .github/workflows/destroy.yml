@@ -105,9 +105,23 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-      # The Worker consumes the queue, so remove it before Terraform deletes the queue.
       - uses: ./.github/actions/setup
-        if: inputs.apply && inputs.delete_worker
+        if: inputs.apply
+
+      # Cloudflare refuses to delete a Worker that consumes a queue (code 10064), and the
+      # queue is always destroyed below — so detach the consumer first, on every apply.
+      # Queue/script names must match wrangler.toml and the Terraform queue module.
+      - name: Detach Worker from the queue (wrangler)
+        if: inputs.apply
+        working-directory: apps/api
+        run: |
+          set +e
+          out=$(pnpm exec wrangler queues consumer remove samongnoi-jobs app 2>&1)
+          code=$?
+          echo "$out"
+          if [ $code -ne 0 ] && ! grep -qiE 'not found|does not exist|no consumer|is not a consumer' <<<"$out"; then
+            exit $code
+          fi
 
       - name: Delete Worker (wrangler)
         if: inputs.apply && inputs.delete_worker
