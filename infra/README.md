@@ -278,6 +278,7 @@ Adding/removing one later → follow the `manage-secrets` skill.
 | Local `plan` shows in-place updates with no attribute changes, CI says "No changes" | Local Terraform older than CI's | Use the pinned version (1.16.x) everywhere |
 | CI `actions/checkout`: "Repository not found" (private repo) | Job-level `permissions:` replaced the workflow's `contents: read` | Add `contents: read` to that job's permissions |
 | Deploy fails after a merge that only changed `infra/README.md` | `infra/**` path filter matched docs | Filters are `infra/envs/**` + `infra/modules/**` |
+| `terraform plan` fails: `Get Redis Database failed … 404 "database not found"` | Upstash archived the free database after ~30 days without activity (the daily keep-alive cron prevents this). The provider errors instead of dropping it from state | Forget it in state, then let the next apply recreate it: `terraform state rm module.upstash_redis.upstash_redis_database.this` (or the destroy workflow's `forget_missing_redis`). The old data can be restored from the Upstash console |
 
 ## 4. Day-2 operations
 
