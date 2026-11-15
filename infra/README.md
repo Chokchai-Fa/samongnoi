@@ -289,7 +289,7 @@ Adding/removing one later → follow the `manage-secrets` skill.
 | Logs | Cloudflare dashboard → Worker → Logs (observability enabled), or `pnpm --filter api exec wrangler tail` |
 | Watch free-tier usage | Cloudflare (Workers, DO, Queues, AI Neurons), Neon (CU-hours, storage), Upstash (commands), AI Studio (Gemini quota) dashboards |
 | Rotate a provider token | Create new → update GitHub secret → re-run `deploy.yml` → revoke old |
-| Tear down (destructive — ask first) | `terraform destroy` in `infra/envs/prod`, then `wrangler delete` for the Worker |
+| Tear down (destructive — ask first) | Actions → **Terraform destroy** (`destroy.yml`) → Run workflow. Defaults only plan (see the run summary); tick *apply* and type `samongnoi` in *confirm* to destroy. The database is kept unless *include_database* is ticked; *delete_worker* also runs `wrangler delete` |
 
 **What happens at a free limit** (no card on file means no surprise bills):
 Workers/DO/Queues → requests start failing until the daily reset (00:00 UTC);

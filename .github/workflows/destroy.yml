@@ -1,0 +1,126 @@
+name: Terraform destroy
+
+# Manual only. Defaults are safe: a run with the defaults only PLANS the teardown.
+# To really destroy, tick "apply" AND type the workspace name in "confirm".
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: 'Actually destroy (unticked = plan only, nothing is changed)'
+        type: boolean
+        default: false
+      include_database:
+        description: 'Also destroy the Neon database (ALL DATA LOST; overrides prevent_destroy)'
+        type: boolean
+        default: false
+      delete_worker:
+        description: 'Also delete the Worker "app" with wrangler (it is not in Terraform state)'
+        type: boolean
+        default: true
+      confirm:
+        description: 'Type "samongnoi" to confirm when apply is ticked'
+        type: string
+        required: false
+        default: ''
+
+# Never run alongside a deploy (which could re-create what we're removing).
+concurrency:
+  group: deploy-main
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  destroy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    concurrency:
+      group: terraform-prod
+      cancel-in-progress: false
+    defaults:
+      run:
+        working-directory: infra/envs/prod
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      TF_VAR_cloudflare_account_id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+      UPSTASH_EMAIL: ${{ secrets.UPSTASH_EMAIL }}
+      UPSTASH_API_KEY: ${{ secrets.UPSTASH_API_KEY }}
+      APPLY: ${{ inputs.apply }}
+      INCLUDE_DATABASE: ${{ inputs.include_database }}
+      DELETE_WORKER: ${{ inputs.delete_worker }}
+      CONFIRM: ${{ inputs.confirm }}
+    steps:
+      - name: Check inputs
+        working-directory: .
+        run: |
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "::error::Run destroy from main only (got $GITHUB_REF)."
+            exit 1
+          fi
+          if [ "$APPLY" = "true" ] && [ "$CONFIRM" != "samongnoi" ]; then
+            echo "::error::apply is ticked but confirm is not \"samongnoi\" — refusing to destroy."
+            exit 1
+          fi
+          echo "apply=$APPLY include_database=$INCLUDE_DATABASE delete_worker=$DELETE_WORKER"
+
+      - uses: actions/checkout@v4
+
+      # prevent_destroy can't be overridden from the CLI, so lift it in this runner's
+      # checkout only — the committed code keeps protecting the database.
+      - name: Allow destroying the database
+        if: inputs.include_database
+        working-directory: .
+        run: |
+          sed -i 's/prevent_destroy = true/prevent_destroy = false/' infra/modules/neon_db/main.tf
+          grep -n 'prevent_destroy' infra/modules/neon_db/main.tf
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.16.5 # keep in sync with infra/envs/prod/versions.tf
+          cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
+          terraform_wrapper: false
+
+      - name: terraform init
+        run: terraform init -input=false
+
+      # Without the database, target every other module (Terraform has no "exclude").
+      # Add new modules from main.tf here when they're created.
+      - name: terraform plan -destroy
+        run: |
+          targets=()
+          if [ "$INCLUDE_DATABASE" != "true" ]; then
+            targets=(-target=module.upstash_redis -target=module.queue)
+          fi
+          terraform plan -destroy -input=false -no-color -lock-timeout=5m \
+            "${targets[@]}" -out=tfplan | tee plan.txt
+          {
+            echo "## Terraform destroy plan"
+            echo "apply=\`$APPLY\` · include_database=\`$INCLUDE_DATABASE\` · delete_worker=\`$DELETE_WORKER\`"
+            echo
+            echo '```hcl'
+            tail -c 60000 plan.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # The Worker consumes the queue, so remove it before Terraform deletes the queue.
+      - uses: ./.github/actions/setup
+        if: inputs.apply && inputs.delete_worker
+
+      - name: Delete Worker (wrangler)
+        if: inputs.apply && inputs.delete_worker
+        working-directory: apps/api
+        run: |
+          set +e
+          out=$(pnpm exec wrangler delete --force 2>&1)
+          code=$?
+          echo "$out"
+          if [ $code -ne 0 ] && ! grep -qiE 'not found|does not exist|10007' <<<"$out"; then
+            exit $code
+          fi
+
+      - name: terraform apply (destroy)
+        if: inputs.apply
+        run: terraform apply -input=false -no-color -lock-timeout=5m tfplan
