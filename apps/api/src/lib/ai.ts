@@ -5,7 +5,8 @@ import { defangTags } from './prompt';
 
 // Providers and models live in this file only. Change them here, not in services.
 // Gemini first; Workers AI when Gemini fails for any reason (rate limit, outage, bad model id).
-const GEMINI_MODEL = 'gemini-3.5-flash';
+// gemini-3.5-flash is deprecated and only auto-routes to 3.6 Flash (checked Nov 2026).
+const GEMINI_MODEL = 'gemini-3.6-flash';
 const WORKERS_AI_MODEL = '@cf/meta/llama-3.1-8b-instruct';
 const WORKERS_AI_MAX_SOURCE_CHARS = 12_000;
 const SUMMARY_TIMEOUT_MS = 30_000;
