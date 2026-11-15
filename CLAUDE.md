@@ -303,6 +303,7 @@ Rules:
 | `ci.yml`     | PR → `main`                     | Affected packages: lint, typecheck, test, build. If `infra/**` changed: fmt, validate, plan, plan posted as PR comment |
 | `deploy.yml` | push to `main` (incl. merges), manual | `infra` (plan + apply) → `app`: build web + api → migrate → one `wrangler deploy` (API + static assets) |
 | `drift.yml`  | weekly cron, manual             | `terraform plan -detailed-exitcode`; opens an issue if live resources drifted |
+| `destroy.yml`| manual only                     | Toggles: `apply` (off = plan only), `include_database`, `delete_worker`; `apply` needs `confirm` = `samongnoi` |
 
 - Change detection uses `dorny/paths-filter`: any `apps/**`, `packages/**`, or lockfile change
   deploys the app (web + api ship together); infra changes also redeploy it (bindings may have
