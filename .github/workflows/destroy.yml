@@ -139,7 +139,7 @@ jobs:
           out=$(pnpm exec wrangler queues consumer remove samongnoi-jobs app 2>&1)
           code=$?
           echo "$out"
-          if [ $code -ne 0 ] && ! grep -qiE 'not found|does not exist|no consumer|is not a consumer' <<<"$out"; then
+          if [ $code -ne 0 ] && ! grep -qiE 'not found|does not exist|no (worker )?consumer|is not a consumer' <<<"$out"; then
             exit $code
           fi
 
