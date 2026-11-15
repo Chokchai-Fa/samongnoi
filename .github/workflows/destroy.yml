@@ -40,6 +40,9 @@ jobs:
       cancel-in-progress: false
     defaults:
       run:
+        # Explicit `bash` = `bash -eo pipefail`; the implicit default lacks pipefail, so a
+        # failing `terraform plan | tee` would pass and apply would run with no plan file.
+        shell: bash
         working-directory: infra/envs/prod
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
